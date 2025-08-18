@@ -264,21 +264,26 @@ struct ContentView: View {
     }
     
     private var weekdaySymbols: [String] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        return formatter.shortWeekdaySymbols
+        // Force Monday-first order regardless of locale
+        return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     }
     
     private var calendarDays: [Int] {
-        let calendar = Calendar.current
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 2 // 2 = Monday, 1 = Sunday
+        
         let startOfMonth = calendar.dateInterval(of: .month, for: Date())?.start ?? Date()
         let firstWeekday = calendar.component(.weekday, from: startOfMonth)
         let daysInMonth = calendar.range(of: .day, in: .month, for: Date())?.count ?? 0
         
         var days: [Int] = []
         
+        // Convert Sunday=1, Monday=2, etc. to Monday=0, Tuesday=1, etc.
+        // Sunday=1 → 0, Monday=2 → 1, Tuesday=3 → 2, etc.
+        let mondayBasedWeekday = firstWeekday == 1 ? 6 : firstWeekday - 2
+        
         // Add empty days for first week
-        for _ in 1..<firstWeekday {
+        for _ in 0..<mondayBasedWeekday {
             days.append(0)
         }
         

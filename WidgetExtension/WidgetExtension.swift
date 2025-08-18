@@ -56,15 +56,21 @@ struct Provider: TimelineProvider {
     }
     
     private func createEntry(for date: Date) -> SimpleEntry {
-        let calendar = Calendar.current
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 2 // 2 = Monday, 1 = Sunday
+        
         let startOfMonth = calendar.dateInterval(of: .month, for: date)?.start ?? date
         let firstWeekday = calendar.component(.weekday, from: startOfMonth)
         let daysInMonth = calendar.range(of: .day, in: .month, for: date)?.count ?? 0
         
         var days: [Int] = []
         
+        // Convert Sunday=1, Monday=2, etc. to Monday=0, Tuesday=1, etc.
+        // Sunday=1 → 0, Monday=2 → 1, Tuesday=3 → 2, etc.
+        let mondayBasedWeekday = firstWeekday == 1 ? 6 : firstWeekday - 2
+        
         // Add empty days for first week
-        for _ in 1..<firstWeekday {
+        for _ in 0..<mondayBasedWeekday {
             days.append(0)
         }
         
@@ -74,6 +80,7 @@ struct Provider: TimelineProvider {
         }
         
         let formatter = DateFormatter()
+        // Use current locale for other formatting
         formatter.locale = Locale.current
         
         let monthFormatter = DateFormatter()
@@ -92,7 +99,7 @@ struct Provider: TimelineProvider {
             currentDayName: dayNameFormatter.string(from: date),
             currentTime: timeFormatter.string(from: date),
             calendarDays: days,
-            weekdaySymbols: formatter.shortWeekdaySymbols
+            weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         )
     }
 }
