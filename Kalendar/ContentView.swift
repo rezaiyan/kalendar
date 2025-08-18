@@ -11,6 +11,27 @@ struct ContentView: View {
     @State private var selectedDate = Date()
     @State private var showWidgetGuide = false
     
+    // MARK: - iPad-Specific Layout Properties
+    private var isIPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+    
+    private var horizontalPadding: CGFloat {
+        isIPad ? 60 : 20
+    }
+    
+    private var calendarSpacing: CGFloat {
+        isIPad ? 30 : 20
+    }
+    
+    private var weekdayFontSize: CGFloat {
+        isIPad ? 20 : 16
+    }
+    
+    private var calendarColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: isIPad ? 12 : 8), count: 7)
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -25,6 +46,7 @@ struct ContentView: View {
                 WidgetSetupGuide()
             }
         }
+        .navigationViewStyle(StackNavigationViewStyle()) // Fix for iPad
     }
     
     // MARK: - Header Section
@@ -44,10 +66,11 @@ struct ContentView: View {
     
     // MARK: - Calendar Section
     private var calendarSection: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: calendarSpacing) {
             weekdayHeaders
             calendarGrid
         }
+        .padding(.horizontal, horizontalPadding)
     }
     
     // MARK: - Weekday Headers
@@ -55,12 +78,11 @@ struct ContentView: View {
         HStack(spacing: 0) {
             ForEach(weekdaySymbols, id: \.self) { day in
                 Text(day)
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(.system(size: weekdayFontSize, weight: .semibold, design: .rounded))
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity)
             }
         }
-        .padding(.horizontal, 20)
     }
     
     // MARK: - Calendar Grid
@@ -220,10 +242,7 @@ struct ContentView: View {
         )
     }
     
-    // MARK: - Calendar Columns
-    private var calendarColumns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 8), count: 7)
-    }
+
     
     // MARK: - Computed Properties
     private var currentMonthYear: String {
@@ -459,6 +478,7 @@ struct WidgetSetupGuide: View {
             }
         }
     }
+    
 }
 
 // MARK: - Step Item

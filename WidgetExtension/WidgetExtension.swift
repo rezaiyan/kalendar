@@ -8,8 +8,7 @@
 import WidgetKit
 import SwiftUI
 
-@main
-struct KalendarWidgetExtension: Widget {
+struct WidgetExtension: Widget {
     let kind: String = "KalendarWidgetExtension"
 
     var body: some WidgetConfiguration {
@@ -417,7 +416,7 @@ struct LargeContentView: View {
 }
 
 #Preview(as: .systemMedium) {
-    KalendarWidgetExtension()
+    WidgetExtension()
 } timeline: {
     SimpleEntry(
         date: Date(),
@@ -431,7 +430,7 @@ struct LargeContentView: View {
 }
 
 #Preview(as: .systemLarge) {
-    KalendarWidgetExtension()
+    WidgetExtension()
 } timeline: {
     SimpleEntry(
         date: Date(),
