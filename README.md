@@ -5,10 +5,10 @@ A beautiful and modern iOS calendar app featuring a creative monthly calendar wi
 ## 📱 Screenshots
 
 ### Main App Interface
-![Main App](KalendarWidgetExtension/screenshots/app.png)
+![Main App](screenshots/app.png)
 
 ### Home Screen Widget
-![Widget](KalendarWidgetExtension/screenshots/widget.png)
+![Widget](screenshots/widget.png)
 
 ## ✨ Features
 
