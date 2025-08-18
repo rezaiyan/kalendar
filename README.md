@@ -4,11 +4,18 @@ A beautiful and modern iOS calendar app featuring a creative monthly calendar wi
 
 ## 📱 Screenshots
 
+> **Note**: Screenshots are available in the `KalendarWidgetExtension/screenshots/` folder but are not included in the repository due to size constraints.
+
 ### Main App Interface
-![Main App](KalendarWidgetExtension/screenshots/app.png)
+- Beautiful full-month calendar with interactive date selection
+- Modern UI with blue-purple gradients and rounded corners
+- Built-in widget setup guide and open source footer
 
 ### Home Screen Widget
-![Widget](KalendarWidgetExtension/screenshots/widget.png)
+- Clean month display without year clutter
+- Current time shown in corner with modern styling
+- Today's date highlighted with beautiful gradient
+- Available in medium and large sizes
 
 ## ✨ Features
 
