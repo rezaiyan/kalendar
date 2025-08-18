@@ -1,30 +1,49 @@
 # Kalendar - iOS Calendar App with Widget
 
-A beautiful and modern iOS calendar app featuring a creative monthly calendar widget.
+A beautiful and modern iOS calendar app featuring a creative monthly calendar widget. Built with SwiftUI and WidgetKit for a seamless user experience.
 
-## Features
+## 📱 Screenshots
 
-- **Full Month Calendar Widget**: Displays the current month with today's date highlighted
-- **Modern UI Design**: Clean, rounded design with gradients and shadows
-- **Multiple Widget Sizes**: Supports both medium and large widget sizes
-- **Interactive Main App**: Beautiful calendar interface in the main app
-- **Real-time Updates**: Widget updates automatically to show current date
+### Main App Interface
+![Main App](KalendarWidgetExtension/screenshots/app.png)
 
-## Widget Features
+### Home Screen Widget
+![Widget](KalendarWidgetExtension/screenshots/widget.png)
+
+## ✨ Features
+
+### Main App
+- **Full Month Calendar**: Interactive calendar with date selection
+- **Modern UI Design**: Clean, rounded design with blue-purple gradients
+- **Date Selection**: Tap any date to see it highlighted
+- **Widget Setup Guide**: Built-in instructions for adding the widget
+- **Open Source**: Proudly open source with GitHub integration
+
+### Calendar Widget
+- **Full Month Display**: Shows complete month calendar grid
+- **Today Highlighting**: Current date highlighted with beautiful gradient
+- **Time Display**: Current time shown in corner with modern styling
+- **Clean Design**: Month name and day name without year clutter
+- **Multiple Sizes**: Supports both medium and large widget sizes
+- **Real-time Updates**: Automatically updates to show current date
+
+## 🎯 Widget Features
 
 ### Medium Widget
-- Shows month and year
-- Highlights current day with blue circle
-- Compact calendar grid layout
-- Clean, modern design
+- Compact month header with day name
+- Current time display in top-right corner
+- 7x6 calendar grid layout
+- Today's date highlighted with blue-purple gradient
+- Clean, modern design with subtle backgrounds
 
 ### Large Widget
-- Enhanced month header with gradient
+- Enhanced month header with larger text
+- Prominent time display with rounded background
 - Larger calendar grid for better visibility
-- Current day highlighted with blue-purple gradient
-- Subtle grid lines for better readability
+- Today's date highlighted with blue-purple gradient
+- Professional appearance with proper spacing
 
-## Setup Instructions
+## 🚀 Setup Instructions
 
 ### 1. Add Widget Extension Target
 
@@ -38,8 +57,8 @@ A beautiful and modern iOS calendar app featuring a creative monthly calendar wi
 ### 2. Configure Widget Extension
 
 1. In the new widget target, replace the default files with our custom ones:
-   - `KalendarWidget.swift` - Main widget implementation
-   - `KalendarWidgetBundle.swift` - Widget bundle configuration
+   - `KalendarWidgetExtension.swift` - Main widget implementation
+   - Remove default control and live activity files
 
 2. Make sure the widget target has access to your app's shared code
 
@@ -52,42 +71,76 @@ A beautiful and modern iOS calendar app featuring a creative monthly calendar wi
    - Search for "Kalendar"
    - Add the widget to your home screen
 
-## Widget Customization
+## 🎨 Widget Customization
 
 The widget automatically:
 - Updates to show the current month
-- Highlights today's date
+- Highlights today's date with gradient
+- Shows current time in corner
 - Adjusts to different widget sizes
 - Uses system colors for light/dark mode support
+- Removes year display for cleaner appearance
 
-## Technical Details
+## 🔧 Technical Details
 
-- Built with SwiftUI and WidgetKit
-- Supports iOS 14+ (WidgetKit requirement)
-- Uses system fonts and colors for consistency
-- Implements TimelineProvider for efficient updates
-- Responsive design for different widget sizes
+- **Built with**: SwiftUI and WidgetKit
+- **iOS Support**: iOS 14+ (WidgetKit requirement)
+- **Design System**: System fonts and colors for consistency
+- **Architecture**: TimelineProvider for efficient updates
+- **Responsive Design**: Adapts to different widget sizes
+- **Performance**: Optimized SwiftUI views for compiler efficiency
 
-## App Structure
+## 📁 Project Structure
 
 ```
 Kalendar/
-├── KalendarApp.swift          # Main app entry point
-├── ContentView.swift          # Main app interface
-├── KalendarWidget.swift       # Widget implementation
-├── KalendarWidgetBundle.swift # Widget bundle
-└── Assets.xcassets/           # App assets
+├── KalendarApp.swift                    # Main app entry point
+├── ContentView.swift                    # Main app interface with calendar
+├── KalendarWidgetExtension/             # Widget extension target
+│   ├── KalendarWidgetExtension.swift   # Widget implementation
+│   ├── Assets.xcassets/                # Widget assets
+│   └── Info.plist                      # Widget configuration
+├── Assets.xcassets/                     # Main app assets
+└── README.md                           # This file
 ```
 
-## Requirements
+## 📋 Requirements
 
-- iOS 14.0+
-- Xcode 12.0+
-- Swift 5.3+
+- **iOS**: 14.0+
+- **Xcode**: 12.0+
+- **Swift**: 5.3+
+- **Device**: iPhone or iPad with iOS 14+
 
-## Notes
+## 🌟 Key Features
 
-- The widget will automatically update to show the current month
-- Today's date is highlighted with a blue circle (medium) or gradient (large)
-- The widget supports both light and dark mode automatically
-- Calendar calculations handle month boundaries and weekday alignments correctly 
+- **No Year Display**: Clean month-only headers
+- **Simplified Day Format**: Just day name, no "Today is..." text
+- **Time Integration**: Current time displayed in corner
+- **Professional Appearance**: Clean, minimal design
+- **Open Source**: Community-driven development
+
+## 🤝 Contributing
+
+This is an open source project! Contributions are welcome:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## 📄 License
+
+This project is open source and available under the MIT License.
+
+## 🎉 Notes
+
+- The widget automatically updates to show the current month
+- Today's date is highlighted with a beautiful blue-purple gradient
+- Supports both light and dark mode automatically
+- Calendar calculations handle month boundaries and weekday alignments correctly
+- Time display updates in real-time
+- Clean, professional design without unnecessary text clutter
+
+---
+
+**Built with ❤️ by [@rezaiyan](https://github.com/rezaiyan)** 
