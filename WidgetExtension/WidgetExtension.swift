@@ -24,6 +24,9 @@ struct WidgetExtension: Widget {
 struct Provider: TimelineProvider {
     typealias Entry = SimpleEntry
     
+    // Create a shared calendar instance for the provider
+    private let calendar = Calendar.current
+    
     func placeholder(in context: Context) -> SimpleEntry {
         SimpleEntry(
             date: Date(),
@@ -32,7 +35,8 @@ struct Provider: TimelineProvider {
             currentDayName: "Monday",
             currentTime: "14:30",
             calendarDays: Array(1...31),
-            weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+            initialTime: Date()
         )
     }
 
@@ -44,16 +48,51 @@ struct Provider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<SimpleEntry>) -> ()) {
         var entries: [SimpleEntry] = []
 
-        let currentDate = Date()
-        for hourOffset in 0 ..< 5 {
-            let entryDate = Calendar.current.date(byAdding: .hour, value: hourOffset, to: currentDate)!
-            let entry = createEntry(for: entryDate)
-            entries.append(entry)
+        let now = Date()
+        let startOfCurrentMinute = startOfMinute(from: now)
+        
+        // Create entries starting from the beginning of current minute (at :00 seconds)
+        // This ensures perfect synchronization with system clock
+        for i in 0..<10 {
+            if let entryDate = calendar.date(byAdding: .minute, value: i, to: startOfCurrentMinute) {
+                let entry = createEntry(for: entryDate)
+                entries.append(entry)
+            }
+        }
+        
+        // Add entries for the next few hours to handle hour changes
+        for i in 1...6 {
+            if let entryDate = calendar.date(byAdding: .hour, value: i, to: startOfCurrentMinute) {
+                let entry = createEntry(for: entryDate)
+                entries.append(entry)
+            }
+        }
+        
+        // Add entry for midnight to handle day changes
+        if let midnight = calendar.date(bySettingHour: 0, minute: 0, second: 0, of: calendar.date(byAdding: .day, value: 1, to: startOfCurrentMinute)!) {
+            let midnightEntry = createEntry(for: midnight)
+            entries.append(midnightEntry)
+        }
+        
+        // Add entry for next month to handle month changes
+        if let nextMonth = calendar.date(byAdding: .month, value: 1, to: startOfCurrentMinute) {
+            let nextMonthEntry = createEntry(for: nextMonth)
+            entries.append(nextMonthEntry)
         }
 
+        // Use .atEnd policy to refresh when timeline ends
         let timeline = Timeline(entries: entries, policy: .atEnd)
         completion(timeline)
     }
+    
+    private func startOfMinute(from date: Date) -> Date {
+        let cal = Calendar.current
+        // Strip seconds and get the beginning of the current minute (at :00 seconds)
+        let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        return cal.date(from: comps) ?? date
+    }
+    
+
     
     private func createEntry(for date: Date) -> SimpleEntry {
         var calendar = Calendar(identifier: .gregorian)
@@ -99,7 +138,8 @@ struct Provider: TimelineProvider {
             currentDayName: dayNameFormatter.string(from: date),
             currentTime: timeFormatter.string(from: date),
             calendarDays: days,
-            weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+            initialTime: date // Store the initial time for local updates
         )
     }
 }
@@ -112,6 +152,7 @@ struct SimpleEntry: TimelineEntry {
     let currentTime: String
     let calendarDays: [Int]
     let weekdaySymbols: [String]
+    let initialTime: Date // Store the initial time for local updates
 }
 
 struct KalendarWidgetExtensionEntryView: View {
@@ -119,162 +160,11 @@ struct KalendarWidgetExtensionEntryView: View {
     @Environment(\.widgetFamily) var family
     
     var body: some View {
-        switch family {
-        case .systemMedium:
-            MediumContentView(entry: entry)
-        case .systemLarge:
-            LargeContentView(entry: entry)
-        default:
-            MediumContentView(entry: entry)
-        }
+        LargeContentView(entry: entry)
     }
 }
 
-// MARK: - Medium Widget (Replicates ContentView exactly)
-struct MediumContentView: View {
-    let entry: SimpleEntry
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            headerSection
-            calendarSection
-            Spacer()
-            bottomInfoSection
-        }
-        .background(backgroundGradient)
-        .padding(8)
-    }
-    
-    // MARK: - Header Section (Same as ContentView)
-    private var headerSection: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(entry.currentMonth)
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
-                
-                Text(entry.currentDayName)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            Text(entry.currentTime)
-                .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                .foregroundColor(.blue)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.blue.opacity(0.1))
-                )
-        }
-        .padding(.top, 8)
-        .padding(.bottom, 16)
-    }
-    
-    // MARK: - Calendar Section (Same as ContentView)
-    private var calendarSection: some View {
-        VStack(spacing: 12) {
-            weekdayHeaders
-            calendarGrid
-        }
-    }
-    
-    // MARK: - Weekday Headers (Same as ContentView)
-    private var weekdayHeaders: some View {
-        HStack(spacing: 0) {
-            ForEach(entry.weekdaySymbols, id: \.self) { day in
-                Text(day)
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity)
-            }
-        }
-        .padding(.horizontal, 12)
-    }
-    
-    // MARK: - Calendar Grid (Same as ContentView)
-    private var calendarGrid: some View {
-        LazyVGrid(columns: calendarColumns, spacing: 4) {
-            ForEach(entry.calendarDays, id: \.self) { day in
-                if day > 0 {
-                    calendarDayView(for: day)
-                } else {
-                    emptyCalendarDay
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-    }
-    
-    // MARK: - Calendar Day View (Same as ContentView, but without button)
-    private func calendarDayView(for day: Int) -> some View {
-        Text("\(day)")
-            .font(.system(size: 12, weight: .medium, design: .rounded))
-            .foregroundColor(day == Calendar.current.component(.day, from: Date()) ? .white : .primary)
-            .frame(width: 20, height: 20)
-            .background(dayBackground(for: day))
-            .overlay(dayOverlay(for: day))
-    }
-    
-    // MARK: - Day Background (Same as ContentView)
-    private func dayBackground(for day: Int) -> some View {
-        Group {
-            if day == Calendar.current.component(.day, from: Date()) {
-                Circle()
-                    .fill(dayGradient)
-            } else {
-                // No background for non-today days
-                Color.clear
-            }
-        }
-    }
-    
-    // MARK: - Day Overlay (Same as ContentView)
-    private func dayOverlay(for day: Int) -> some View {
-        Circle()
-            .stroke(Color.blue, lineWidth: 1)
-    }
-    
-    // MARK: - Empty Calendar Day (Same as ContentView)
-    private var emptyCalendarDay: some View {
-        Text("")
-            .frame(width: 20, height: 20)
-    }
-    
-    // MARK: - Bottom Info Section (Same as ContentView)
-    private var bottomInfoSection: some View {
-        VStack(spacing: 8) {
-            // Empty space for visual balance
-        }
-        .padding(.bottom, 8)
-    }
-    
-    // MARK: - Background Gradient (Same as ContentView)
-    private var backgroundGradient: some View {
-        LinearGradient(
-            colors: [Color(.systemBackground), Color(.systemGray6)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-    
-    // MARK: - Day Gradient (Same as ContentView)
-    private var dayGradient: LinearGradient {
-        LinearGradient(
-            colors: [.blue, .purple],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-    
-    // MARK: - Calendar Columns (Same as ContentView)
-    private var calendarColumns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
-    }
-}
+
 
 // MARK: - Large Widget (Replicates ContentView with larger sizes)
 struct LargeContentView: View {
@@ -305,8 +195,9 @@ struct LargeContentView: View {
             
             Spacer()
             
-            Text(entry.currentTime)
+            Text(entry.date, style: .time)
                 .font(.system(size: 18, weight: .semibold, design: .monospaced))
+                .monospacedDigit()
                 .foregroundColor(.blue)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
@@ -358,7 +249,7 @@ struct LargeContentView: View {
     private func calendarDayView(for day: Int) -> some View {
         Text("\(day)")
             .font(.system(size: 16, weight: .medium, design: .rounded))
-            .foregroundColor(day == Calendar.current.component(.day, from: Date()) ? .white : .primary)
+            .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : .primary)
             .frame(width: 28, height: 28)
             .background(dayBackground(for: day))
             .overlay(dayOverlay(for: day))
@@ -367,7 +258,7 @@ struct LargeContentView: View {
     // MARK: - Day Background (Same as ContentView)
     private func dayBackground(for day: Int) -> some View {
         Group {
-            if day == Calendar.current.component(.day, from: Date()) {
+            if day == Calendar.current.component(.day, from: entry.date) {
                 Circle()
                     .fill(dayGradient)
             } else {
@@ -419,21 +310,10 @@ struct LargeContentView: View {
     private var calendarColumns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
     }
+    
 }
 
-#Preview(as: .systemMedium) {
-    WidgetExtension()
-} timeline: {
-    SimpleEntry(
-        date: Date(),
-        selectedDate: Date(),
-        currentMonth: "August",
-        currentDayName: "Monday",
-        currentTime: "14:30",
-        calendarDays: Array(1...31),
-        weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    )
-}
+
 
 #Preview(as: .systemLarge) {
     WidgetExtension()
@@ -445,6 +325,7 @@ struct LargeContentView: View {
         currentDayName: "Monday",
         currentTime: "14:30",
         calendarDays: Array(1...31),
-        weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        initialTime: Date()
     )
 }
