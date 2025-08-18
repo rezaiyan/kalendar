@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		41BF523F2E535E1600517B50 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41BF523E2E535E1600517B50 /* WidgetKit.framework */; };
+		41BF52412E535E1600517B50 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41BF52402E535E1600517B50 /* SwiftUI.framework */; };
+		41BF52502E535E1800517B50 /* KalendarWidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 41BF523C2E535E1600517B50 /* KalendarWidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		41BF52142E535CD500517B50 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,13 +27,47 @@
 			remoteGlobalIDString = 41BF52052E535CD400517B50;
 			remoteInfo = Kalendar;
 		};
+		41BF524E2E535E1800517B50 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 41BF51FE2E535CD400517B50 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 41BF523B2E535E1600517B50;
+			remoteInfo = KalendarWidgetExtensionExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		41BF52552E535E1800517B50 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				41BF52502E535E1800517B50 /* KalendarWidgetExtensionExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		41BF52062E535CD400517B50 /* Kalendar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kalendar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		41BF52132E535CD500517B50 /* KalendarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KalendarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		41BF521D2E535CD500517B50 /* KalendarUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KalendarUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		41BF523C2E535E1600517B50 /* KalendarWidgetExtensionExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KalendarWidgetExtensionExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		41BF523E2E535E1600517B50 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		41BF52402E535E1600517B50 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		41BF52512E535E1800517B50 /* Exceptions for "KalendarWidgetExtension" folder in "KalendarWidgetExtensionExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 41BF523B2E535E1600517B50 /* KalendarWidgetExtensionExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		41BF52082E535CD400517B50 /* Kalendar */ = {
@@ -43,6 +83,14 @@
 		41BF52202E535CD500517B50 /* KalendarUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = KalendarUITests;
+			sourceTree = "<group>";
+		};
+		41BF52422E535E1600517B50 /* KalendarWidgetExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				41BF52512E535E1800517B50 /* Exceptions for "KalendarWidgetExtension" folder in "KalendarWidgetExtensionExtension" target */,
+			);
+			path = KalendarWidgetExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -69,6 +117,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		41BF52392E535E1600517B50 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				41BF52412E535E1600517B50 /* SwiftUI.framework in Frameworks */,
+				41BF523F2E535E1600517B50 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -78,6 +135,8 @@
 				41BF52082E535CD400517B50 /* Kalendar */,
 				41BF52162E535CD500517B50 /* KalendarTests */,
 				41BF52202E535CD500517B50 /* KalendarUITests */,
+				41BF52422E535E1600517B50 /* KalendarWidgetExtension */,
+				41BF523D2E535E1600517B50 /* Frameworks */,
 				41BF52072E535CD400517B50 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -88,8 +147,18 @@
 				41BF52062E535CD400517B50 /* Kalendar.app */,
 				41BF52132E535CD500517B50 /* KalendarTests.xctest */,
 				41BF521D2E535CD500517B50 /* KalendarUITests.xctest */,
+				41BF523C2E535E1600517B50 /* KalendarWidgetExtensionExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		41BF523D2E535E1600517B50 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				41BF523E2E535E1600517B50 /* WidgetKit.framework */,
+				41BF52402E535E1600517B50 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -102,10 +171,12 @@
 				41BF52022E535CD400517B50 /* Sources */,
 				41BF52032E535CD400517B50 /* Frameworks */,
 				41BF52042E535CD400517B50 /* Resources */,
+				41BF52552E535E1800517B50 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				41BF524F2E535E1800517B50 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				41BF52082E535CD400517B50 /* Kalendar */,
@@ -163,6 +234,28 @@
 			productReference = 41BF521D2E535CD500517B50 /* KalendarUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		41BF523B2E535E1600517B50 /* KalendarWidgetExtensionExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 41BF52522E535E1800517B50 /* Build configuration list for PBXNativeTarget "KalendarWidgetExtensionExtension" */;
+			buildPhases = (
+				41BF52382E535E1600517B50 /* Sources */,
+				41BF52392E535E1600517B50 /* Frameworks */,
+				41BF523A2E535E1600517B50 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				41BF52422E535E1600517B50 /* KalendarWidgetExtension */,
+			);
+			name = KalendarWidgetExtensionExtension;
+			packageProductDependencies = (
+			);
+			productName = KalendarWidgetExtensionExtension;
+			productReference = 41BF523C2E535E1600517B50 /* KalendarWidgetExtensionExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -184,6 +277,9 @@
 						CreatedOnToolsVersion = 16.4;
 						TestTargetID = 41BF52052E535CD400517B50;
 					};
+					41BF523B2E535E1600517B50 = {
+						CreatedOnToolsVersion = 16.4;
+					};
 				};
 			};
 			buildConfigurationList = 41BF52012E535CD400517B50 /* Build configuration list for PBXProject "Kalendar" */;
@@ -203,6 +299,7 @@
 				41BF52052E535CD400517B50 /* Kalendar */,
 				41BF52122E535CD500517B50 /* KalendarTests */,
 				41BF521C2E535CD500517B50 /* KalendarUITests */,
+				41BF523B2E535E1600517B50 /* KalendarWidgetExtensionExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -223,6 +320,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		41BF521B2E535CD500517B50 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		41BF523A2E535E1600517B50 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -253,6 +357,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		41BF52382E535E1600517B50 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -265,6 +376,11 @@
 			isa = PBXTargetDependency;
 			target = 41BF52052E535CD400517B50 /* Kalendar */;
 			targetProxy = 41BF521E2E535CD500517B50 /* PBXContainerItemProxy */;
+		};
+		41BF524F2E535E1800517B50 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 41BF523B2E535E1600517B50 /* KalendarWidgetExtensionExtension */;
+			targetProxy = 41BF524E2E535E1800517B50 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -400,6 +516,7 @@
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -428,6 +545,7 @@
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -518,6 +636,60 @@
 			};
 			name = Release;
 		};
+		41BF52532E535E1800517B50 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = VFCFJC7Y5J;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = KalendarWidgetExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = KalendarWidgetExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.Kalendar.KalendarWidgetExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		41BF52542E535E1800517B50 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = VFCFJC7Y5J;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = KalendarWidgetExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = KalendarWidgetExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.Kalendar.KalendarWidgetExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -553,6 +725,15 @@
 			buildConfigurations = (
 				41BF522E2E535CD500517B50 /* Debug */,
 				41BF522F2E535CD500517B50 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		41BF52522E535E1800517B50 /* Build configuration list for PBXNativeTarget "KalendarWidgetExtensionExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				41BF52532E535E1800517B50 /* Debug */,
+				41BF52542E535E1800517B50 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
