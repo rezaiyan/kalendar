@@ -17,7 +17,7 @@ struct WidgetExtension: Widget {
         }
         .configurationDisplayName("Kalendar")
         .description("Beautiful monthly calendar widget")
-        .supportedFamilies([.systemMedium, .systemLarge])
+        .supportedFamilies([.systemLarge])
     }
 }
 
