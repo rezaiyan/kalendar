@@ -226,8 +226,8 @@ struct MediumContentView: View {
                 Circle()
                     .fill(dayGradient)
             } else {
-                Circle()
-                    .fill(Color.gray.opacity(0.1))
+                // No background for non-today days
+                Color.clear
             }
         }
     }
@@ -287,7 +287,6 @@ struct LargeContentView: View {
             Spacer()
             bottomInfoSection
         }
-        .background(backgroundGradient)
         .padding(12)
     }
     
@@ -295,11 +294,11 @@ struct LargeContentView: View {
     private var headerSection: some View {
         HStack {
             VStack(alignment: .leading, spacing: 8) {
-                Text(entry.currentMonth)
+                Text(entry.currentDayName)
                     .font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundColor(.primary)
                 
-                Text(entry.currentDayName)
+                Text(entry.currentMonth)
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundColor(.secondary)
             }
@@ -372,8 +371,8 @@ struct LargeContentView: View {
                 Circle()
                     .fill(dayGradient)
             } else {
-                Circle()
-                    .fill(Color.gray.opacity(0.1))
+                // No background for non-today days
+                Color.clear
             }
         }
     }
