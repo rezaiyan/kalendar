@@ -28,13 +28,31 @@ struct Provider: TimelineProvider {
     private let calendar = Calendar.current
     
     func placeholder(in context: Context) -> SimpleEntry {
-        SimpleEntry(
+        // Create sample calendar days for preview
+        var sampleDays: [CalendarDay] = []
+        
+        // Previous month days
+        for day in [28, 29, 30, 31] {
+            sampleDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .previous))
+        }
+        
+        // Current month days
+        for day in 1...31 {
+            sampleDays.append(CalendarDay(day: day, isCurrentMonth: true, monthType: .current))
+        }
+        
+        // Next month days
+        for day in [1, 2, 3, 4, 5, 6, 7] {
+            sampleDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .next))
+        }
+        
+        return SimpleEntry(
             date: Date(),
             selectedDate: Date(),
             currentMonth: "August",
             currentDayName: "Monday",
             currentTime: "14:30",
-            calendarDays: Array(1...31),
+            allCalendarDays: sampleDays,
             weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
             initialTime: Date()
         )
@@ -84,19 +102,74 @@ struct Provider: TimelineProvider {
         let daysInMonth = calendar.range(of: .day, in: .month, for: date)?.count ?? 0
         
         var days: [Int] = []
+        var previousMonthDays: [Int] = []
+        var nextMonthDays: [Int] = []
         
         // Convert Sunday=1, Monday=2, etc. to Monday=0, Tuesday=1, etc.
         // Sunday=1 → 0, Monday=2 → 1, Tuesday=3 → 2, etc.
         let mondayBasedWeekday = firstWeekday == 1 ? 6 : firstWeekday - 2
         
-        // Add empty days for first week
-        for _ in 0..<mondayBasedWeekday {
-            days.append(0)
+        // Calculate days needed from previous month to fill first week
+        if mondayBasedWeekday > 0 {
+            let previousMonth = calendar.date(byAdding: .month, value: -1, to: date) ?? date
+            let daysInPreviousMonth = calendar.range(of: .day, in: .month, for: previousMonth)?.count ?? 0
+            let startDay = daysInPreviousMonth - mondayBasedWeekday + 1
+            
+            for day in startDay...daysInPreviousMonth {
+                previousMonthDays.append(day)
+            }
         }
         
-        // Add days of the month
+        // Add days of the current month
         for day in 1...daysInMonth {
             days.append(day)
+        }
+        
+        // Calculate days needed from next month to complete the grid
+        // Ensure we always show complete weeks (multiples of 7)
+        let totalDaysIncludingCurrent = mondayBasedWeekday + daysInMonth
+        let weeksNeeded = Int(ceil(Double(totalDaysIncludingCurrent) / 7.0))
+        let totalDaysInGrid = weeksNeeded * 7
+        let remainingDays = totalDaysInGrid - totalDaysIncludingCurrent
+        
+        // Debug: Print calendar calculation details
+        print("Calendar Debug - Date: \(date)")
+        print("  First weekday: \(firstWeekday) -> Monday-based: \(mondayBasedWeekday)")
+        print("  Days in month: \(daysInMonth)")
+        print("  Previous month days: \(previousMonthDays.count)")
+        print("  Current month days: \(days.count)")
+        print("  Total including current: \(totalDaysIncludingCurrent)")
+        print("  Weeks needed: \(weeksNeeded)")
+        print("  Total grid: \(totalDaysInGrid)")
+        print("  Remaining days: \(remainingDays)")
+        print("  Next month days: \(nextMonthDays.count)")
+        
+        if remainingDays > 0 {
+            let nextMonth = calendar.date(byAdding: .month, value: 1, to: date) ?? date
+            let daysInNextMonth = calendar.range(of: .day, in: .month, for: nextMonth)?.count ?? 0
+            let maxDaysToShow = min(remainingDays, daysInNextMonth)
+            
+            for day in 1...maxDaysToShow {
+                nextMonthDays.append(day)
+            }
+        }
+        
+        // Build the complete calendar grid with metadata
+        var allCalendarDays: [CalendarDay] = []
+        
+        // Add previous month days
+        for day in previousMonthDays {
+            allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .previous))
+        }
+        
+        // Add current month days
+        for day in days {
+            allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: true, monthType: .current))
+        }
+        
+        // Add next month days
+        for day in nextMonthDays {
+            allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .next))
         }
         
         let formatter = DateFormatter()
@@ -118,7 +191,7 @@ struct Provider: TimelineProvider {
             currentMonth: monthFormatter.string(from: date),
             currentDayName: dayNameFormatter.string(from: date),
             currentTime: timeFormatter.string(from: date),
-            calendarDays: days,
+            allCalendarDays: allCalendarDays,
             weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
             initialTime: date // Store the initial time for local updates
         )
@@ -131,9 +204,31 @@ struct SimpleEntry: TimelineEntry {
     let currentMonth: String
     let currentDayName: String
     let currentTime: String
-    let calendarDays: [Int]
+    let allCalendarDays: [CalendarDay] // All days in the grid with metadata
     let weekdaySymbols: [String]
     let initialTime: Date // Store the initial time for local updates
+}
+
+// Helper struct for calendar days with unique identifiers
+struct CalendarDay: Identifiable, Hashable {
+    let id = UUID()
+    let day: Int
+    let isCurrentMonth: Bool
+    let monthType: MonthType
+    
+    enum MonthType {
+        case previous
+        case current
+        case next
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: CalendarDay, rhs: CalendarDay) -> Bool {
+        lhs.id == rhs.id
+    }
 }
 
 struct KalendarWidgetExtensionEntryView: View {
@@ -204,29 +299,26 @@ struct LargeContentView: View {
     // MARK: - Calendar Grid (Same as ContentView, larger)
     private var calendarGrid: some View {
         LazyVGrid(columns: calendarColumns, spacing: 6) {
-            ForEach(entry.calendarDays, id: \.self) { day in
-                if day > 0 {
-                    calendarDayView(for: day)
-                } else {
-                    emptyCalendarDay
-                }
+            ForEach(entry.allCalendarDays) { calendarDay in
+                calendarDayView(for: calendarDay.day, isCurrentMonth: calendarDay.isCurrentMonth)
             }
         }
         .padding(.horizontal, 16)
     }
     
     // MARK: - Calendar Day View (Same as ContentView, larger)
-    private func calendarDayView(for day: Int) -> some View {
+    private func calendarDayView(for day: Int, isCurrentMonth: Bool) -> some View {
         Text("\(day)")
             .font(.system(size: 16, weight: .medium, design: .rounded))
-            .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : .primary)
+            .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
+            .opacity(isCurrentMonth ? 1.0 : 0.4)
             .frame(width: 28, height: 28)
-            .background(dayBackground(for: day))
-            .overlay(dayOverlay(for: day))
+            .background(dayBackground(for: day, isCurrentMonth: isCurrentMonth))
+            .overlay(dayOverlay(for: day, isCurrentMonth: isCurrentMonth))
     }
     
     // MARK: - Day Background (Same as ContentView)
-    private func dayBackground(for day: Int) -> some View {
+    private func dayBackground(for day: Int, isCurrentMonth: Bool) -> some View {
         Group {
             if day == Calendar.current.component(.day, from: entry.date) {
                 Circle()
@@ -239,16 +331,12 @@ struct LargeContentView: View {
     }
     
     // MARK: - Day Overlay (Same as ContentView)
-    private func dayOverlay(for day: Int) -> some View {
+    private func dayOverlay(for day: Int, isCurrentMonth: Bool) -> some View {
         Circle()
-            .stroke(Color.blue, lineWidth: 1.5)
+            .stroke(isCurrentMonth ? Color.blue : Color.gray.opacity(0.3), lineWidth: isCurrentMonth ? 1.5 : 1.0)
     }
     
-    // MARK: - Empty Calendar Day (Same as ContentView)
-    private var emptyCalendarDay: some View {
-        Text("")
-            .frame(width: 28, height: 28)
-    }
+
     
     // MARK: - Bottom Info Section (Same as ContentView, larger)
     private var bottomInfoSection: some View {
@@ -294,7 +382,55 @@ struct LargeContentView: View {
         currentMonth: "August",
         currentDayName: "Monday",
         currentTime: "14:30",
-        calendarDays: Array(1...31),
+        allCalendarDays: [
+            // Previous month days (faded)
+            CalendarDay(day: 28, isCurrentMonth: false, monthType: .previous),
+            CalendarDay(day: 29, isCurrentMonth: false, monthType: .previous),
+            CalendarDay(day: 30, isCurrentMonth: false, monthType: .previous),
+            CalendarDay(day: 31, isCurrentMonth: false, monthType: .previous),
+            
+            // Current month days
+            CalendarDay(day: 1, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 2, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 3, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 4, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 5, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 6, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 7, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 8, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 9, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 10, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 11, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 12, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 13, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 14, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 15, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 16, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 17, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 18, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 19, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 20, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 21, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 22, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 23, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 24, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 25, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 26, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 27, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 28, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 29, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 30, isCurrentMonth: true, monthType: .current),
+            CalendarDay(day: 31, isCurrentMonth: true, monthType: .current),
+            
+            // Next month days (faded)
+            CalendarDay(day: 1, isCurrentMonth: false, monthType: .next),
+            CalendarDay(day: 2, isCurrentMonth: false, monthType: .next),
+            CalendarDay(day: 3, isCurrentMonth: false, monthType: .next),
+            CalendarDay(day: 4, isCurrentMonth: false, monthType: .next),
+            CalendarDay(day: 5, isCurrentMonth: false, monthType: .next),
+            CalendarDay(day: 6, isCurrentMonth: false, monthType: .next),
+            CalendarDay(day: 7, isCurrentMonth: false, monthType: .next)
+        ],
         weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         initialTime: Date()
     )
