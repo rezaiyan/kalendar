@@ -49,33 +49,19 @@ struct Provider: TimelineProvider {
         var entries: [SimpleEntry] = []
 
         let now = Date()
-        let startOfCurrentMinute = startOfMinute(from: now)
         
-        // Create entries starting from the beginning of current minute (at :00 seconds)
-        // This ensures perfect synchronization with system clock
-        for i in 0..<10 {
-            if let entryDate = calendar.date(byAdding: .minute, value: i, to: startOfCurrentMinute) {
-                let entry = createEntry(for: entryDate)
-                entries.append(entry)
-            }
-        }
-        
-        // Add entries for the next few hours to handle hour changes
-        for i in 1...6 {
-            if let entryDate = calendar.date(byAdding: .hour, value: i, to: startOfCurrentMinute) {
-                let entry = createEntry(for: entryDate)
-                entries.append(entry)
-            }
-        }
+        // Create entry for current time
+        let currentEntry = createEntry(for: now)
+        entries.append(currentEntry)
         
         // Add entry for midnight to handle day changes
-        if let midnight = calendar.date(bySettingHour: 0, minute: 0, second: 0, of: calendar.date(byAdding: .day, value: 1, to: startOfCurrentMinute)!) {
+        if let midnight = calendar.date(bySettingHour: 0, minute: 0, second: 0, of: calendar.date(byAdding: .day, value: 1, to: now)!) {
             let midnightEntry = createEntry(for: midnight)
             entries.append(midnightEntry)
         }
         
         // Add entry for next month to handle month changes
-        if let nextMonth = calendar.date(byAdding: .month, value: 1, to: startOfCurrentMinute) {
+        if let nextMonth = calendar.date(byAdding: .month, value: 1, to: now) {
             let nextMonthEntry = createEntry(for: nextMonth)
             entries.append(nextMonthEntry)
         }
@@ -85,12 +71,7 @@ struct Provider: TimelineProvider {
         completion(timeline)
     }
     
-    private func startOfMinute(from date: Date) -> Date {
-        let cal = Calendar.current
-        // Strip seconds and get the beginning of the current minute (at :00 seconds)
-        let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: date)
-        return cal.date(from: comps) ?? date
-    }
+
     
 
     
@@ -184,27 +165,16 @@ struct LargeContentView: View {
     private var headerSection: some View {
         HStack {
             VStack(alignment: .leading, spacing: 8) {
-                Text(entry.currentDayName)
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
-                
-                Text(entry.currentMonth)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
-            }
+                            Text(entry.currentDayName)
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .foregroundColor(.primary)
             
-            Spacer()
-            
-            Text(entry.date, style: .time)
-                .font(.system(size: 18, weight: .semibold, design: .monospaced))
-                .monospacedDigit()
-                .foregroundColor(.blue)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.blue.opacity(0.1))
-                )
+            Text(entry.currentMonth)
+                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .foregroundColor(.secondary)
+        }
+        
+        Spacer()
         }
         .padding(.top, 12)
         .padding(.bottom, 20)
