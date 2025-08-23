@@ -8,211 +8,8 @@
 import WidgetKit
 import SwiftUI
 
-// MARK: - Main Calendar Widget
-struct WidgetExtension: Widget {
-    let kind: String = "KalendarWidgetExtension"
-
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: Provider()) { entry in
-            KalendarWidgetExtensionEntryView(entry: entry)
-        }
-        .configurationDisplayName("Kalendar")
-        .description("Beautiful monthly calendar widget")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
-    }
-}
-
-
-
-struct Provider: TimelineProvider {
-    typealias Entry = SimpleEntry
-    
-    // Create a shared calendar instance for the provider
-    private let calendar = Calendar.current
-    
-    func placeholder(in context: Context) -> SimpleEntry {
-        // Create sample calendar days for preview
-        var sampleDays: [CalendarDay] = []
-        
-        // Previous month days
-        for day in [28, 29, 30, 31] {
-            sampleDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .previous))
-        }
-        
-        // Current month days
-        for day in 1...31 {
-            sampleDays.append(CalendarDay(day: day, isCurrentMonth: true, monthType: .current))
-        }
-        
-        // Next month days
-        for day in [1, 2, 3, 4, 5, 6, 7] {
-            sampleDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .next))
-        }
-        
-        return SimpleEntry(
-            date: Date(),
-            selectedDate: Date(),
-            currentMonth: "August",
-            currentDayName: "Monday",
-            currentTime: "14:30",
-            allCalendarDays: sampleDays,
-            weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-            initialTime: Date()
-        )
-    }
-
-    func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
-        let entry = createEntry(for: Date())
-        completion(entry)
-    }
-
-    func getTimeline(in context: Context, completion: @escaping (Timeline<SimpleEntry>) -> ()) {
-        var entries: [SimpleEntry] = []
-
-        let now = Date()
-        
-        // Create entry for current time
-        let currentEntry = createEntry(for: now)
-        entries.append(currentEntry)
-        
-        // Add entry for midnight to handle day changes
-        if let midnight = calendar.date(bySettingHour: 0, minute: 0, second: 0, of: calendar.date(byAdding: .day, value: 1, to: now)!) {
-            let midnightEntry = createEntry(for: midnight)
-            entries.append(midnightEntry)
-        }
-        
-        // Add entry for next month to handle month changes
-        if let nextMonth = calendar.date(byAdding: .month, value: 1, to: now) {
-            let nextMonthEntry = createEntry(for: nextMonth)
-            entries.append(nextMonthEntry)
-        }
-
-        // Use .atEnd policy to refresh when timeline ends
-        let timeline = Timeline(entries: entries, policy: .atEnd)
-        completion(timeline)
-    }
-    
-
-    
-
-    
-    private func createEntry(for date: Date) -> SimpleEntry {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.firstWeekday = 2 // 2 = Monday, 1 = Sunday
-        
-        let startOfMonth = calendar.dateInterval(of: .month, for: date)?.start ?? date
-        let firstWeekday = calendar.component(.weekday, from: startOfMonth)
-        let daysInMonth = calendar.range(of: .day, in: .month, for: date)?.count ?? 0
-        
-        var days: [Int] = []
-        var previousMonthDays: [Int] = []
-        var nextMonthDays: [Int] = []
-        
-        // Convert Sunday=1, Monday=2, etc. to Monday=0, Tuesday=1, etc.
-        // Sunday=1 → 0, Monday=2 → 1, Tuesday=3 → 2, etc.
-        let mondayBasedWeekday = firstWeekday == 1 ? 6 : firstWeekday - 2
-        
-        // Calculate days needed from previous month to fill first week
-        if mondayBasedWeekday > 0 {
-            let previousMonth = calendar.date(byAdding: .month, value: -1, to: date) ?? date
-            let daysInPreviousMonth = calendar.range(of: .day, in: .month, for: previousMonth)?.count ?? 0
-            let startDay = daysInPreviousMonth - mondayBasedWeekday + 1
-            
-            for day in startDay...daysInPreviousMonth {
-                previousMonthDays.append(day)
-            }
-        }
-        
-        // Add days of the current month
-        for day in 1...daysInMonth {
-            days.append(day)
-        }
-        
-        // Calculate days needed from next month to complete the grid
-        // Ensure we always show complete weeks (multiples of 7)
-        let totalDaysIncludingCurrent = mondayBasedWeekday + daysInMonth
-        let weeksNeeded = Int(ceil(Double(totalDaysIncludingCurrent) / 7.0))
-        let totalDaysInGrid = weeksNeeded * 7
-        let remainingDays = totalDaysInGrid - totalDaysIncludingCurrent
-        
-        // Debug: Print calendar calculation details
-        print("Calendar Debug - Date: \(date)")
-        print("  First weekday: \(firstWeekday) -> Monday-based: \(mondayBasedWeekday)")
-        print("  Days in month: \(daysInMonth)")
-        print("  Previous month days: \(previousMonthDays.count)")
-        print("  Current month days: \(days.count)")
-        print("  Total including current: \(totalDaysIncludingCurrent)")
-        print("  Weeks needed: \(weeksNeeded)")
-        print("  Total grid: \(totalDaysInGrid)")
-        print("  Remaining days: \(remainingDays)")
-        print("  Next month days: \(nextMonthDays.count)")
-        
-        if remainingDays > 0 {
-            let nextMonth = calendar.date(byAdding: .month, value: 1, to: date) ?? date
-            let daysInNextMonth = calendar.range(of: .day, in: .month, for: nextMonth)?.count ?? 0
-            let maxDaysToShow = min(remainingDays, daysInNextMonth)
-            
-            for day in 1...maxDaysToShow {
-                nextMonthDays.append(day)
-            }
-        }
-        
-        // Build the complete calendar grid with metadata
-        var allCalendarDays: [CalendarDay] = []
-        
-        // Add previous month days
-        for day in previousMonthDays {
-            allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .previous))
-        }
-        
-        // Add current month days
-        for day in days {
-            allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: true, monthType: .current))
-        }
-        
-        // Add next month days
-        for day in nextMonthDays {
-            allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .next))
-        }
-        
-        let formatter = DateFormatter()
-        // Use current locale for other formatting
-        formatter.locale = Locale.current
-        
-        let monthFormatter = DateFormatter()
-        monthFormatter.dateFormat = "MMMM"
-        
-        let dayNameFormatter = DateFormatter()
-        dayNameFormatter.dateFormat = "EEEE"
-        
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "HH:mm"
-        
-        return SimpleEntry(
-            date: date,
-            selectedDate: date,
-            currentMonth: monthFormatter.string(from: date),
-            currentDayName: dayNameFormatter.string(from: date),
-            currentTime: timeFormatter.string(from: date),
-            allCalendarDays: allCalendarDays,
-            weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-            initialTime: date // Store the initial time for local updates
-        )
-    }
-}
-
-struct SimpleEntry: TimelineEntry {
-    let date: Date
-    let selectedDate: Date
-    let currentMonth: String
-    let currentDayName: String
-    let currentTime: String
-    let allCalendarDays: [CalendarDay] // All days in the grid with metadata
-    let weekdaySymbols: [String]
-    let initialTime: Date // Store the initial time for local updates
-}
-
-// Helper struct for calendar days with unique identifiers
+// MARK: - Local type definitions for Main widget
+// Since we can't directly import from Shared folder, we define the types here
 struct CalendarDay: Identifiable, Hashable {
     let id = UUID()
     let day: Int
@@ -234,8 +31,262 @@ struct CalendarDay: Identifiable, Hashable {
     }
 }
 
+struct CalendarEntry: TimelineEntry {
+    let date: Date
+    let selectedDate: Date
+    let currentMonth: String
+    let currentDayName: String
+    let currentTime: String
+    let allCalendarDays: [CalendarDay]
+    let weekdaySymbols: [String]
+    let initialTime: Date
+}
+
+// MARK: - Main Widget Timeline Provider
+struct MainWidgetTimelineProvider: TimelineProvider {
+    typealias Entry = CalendarEntry
+    
+    private let calendar: Calendar
+    private let timeZone: TimeZone
+    
+    init(calendar: Calendar = Calendar.current, timeZone: TimeZone = TimeZone.current) {
+        var cal = calendar
+        cal.firstWeekday = 2 // Monday = 2, Sunday = 1
+        cal.timeZone = timeZone
+        self.calendar = cal
+        self.timeZone = timeZone
+    }
+    
+    func placeholder(in context: Context) -> CalendarEntry {
+        let sampleDays = createSampleCalendarDays()
+        return CalendarEntry(
+            date: Date(),
+            selectedDate: Date(),
+            currentMonth: "August",
+            currentDayName: "Monday",
+            currentTime: "14:30",
+            allCalendarDays: sampleDays,
+            weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+            initialTime: Date()
+        )
+    }
+    
+    func getSnapshot(in context: Context, completion: @escaping (CalendarEntry) -> ()) {
+        completion(createEntry(for: Date()))
+    }
+    
+    func getTimeline(in context: Context, completion: @escaping (Timeline<CalendarEntry>) -> ()) {
+        var entries: [CalendarEntry] = []
+        let now = Date()
+        
+        // 1. Current entry
+        let currentEntry = createEntry(for: now)
+        entries.append(currentEntry)
+        
+        // 2. Multiple refresh points for reliability
+        let refreshTimes = calculateRefreshTimes(from: now)
+        for refreshTime in refreshTimes {
+            let entry = createEntry(for: refreshTime)
+            entries.append(entry)
+        }
+        
+        // Use .atEnd policy to ensure refresh when timeline ends
+        let timeline = Timeline(entries: entries, policy: .atEnd)
+        
+        #if DEBUG
+        print("📅 Main Widget Timeline created with \(entries.count) entries:")
+        for (index, entry) in entries.enumerated() {
+            print("  \(index + 1). \(formatDate(entry.date))")
+        }
+        #endif
+        
+        completion(timeline)
+    }
+    
+    private func createEntry(for date: Date) -> CalendarEntry {
+        let calendarDays = generateCalendarDays(for: date)
+        
+        // Format date components
+        let monthFormatter = DateFormatter()
+        monthFormatter.dateFormat = "MMMM"
+        monthFormatter.timeZone = timeZone
+        
+        let dayNameFormatter = DateFormatter()
+        dayNameFormatter.dateFormat = "EEEE"
+        dayNameFormatter.timeZone = timeZone
+        
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        timeFormatter.timeZone = timeZone
+        
+        return CalendarEntry(
+            date: date,
+            selectedDate: date,
+            currentMonth: monthFormatter.string(from: date),
+            currentDayName: dayNameFormatter.string(from: date),
+            currentTime: timeFormatter.string(from: date),
+            allCalendarDays: calendarDays,
+            weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+            initialTime: date
+        )
+    }
+    
+    private func calculateRefreshTimes(from startDate: Date) -> [Date] {
+        var refreshTimes: [Date] = []
+        
+        // Calculate next midnight in the widget's timezone
+        guard let tomorrowMidnight = nextMidnight(after: startDate) else {
+            return []
+        }
+        
+        // Add midnight refresh
+        refreshTimes.append(tomorrowMidnight)
+        
+        // Add additional refresh points for extra reliability
+        
+        // 1. Next day at 1 AM (in case midnight refresh fails)
+        if let oneAM = calendar.date(byAdding: .hour, value: 1, to: tomorrowMidnight) {
+            refreshTimes.append(oneAM)
+        }
+        
+        // 2. Next day at 6 AM (for good measure)
+        if let sixAM = calendar.date(byAdding: .hour, value: 6, to: tomorrowMidnight) {
+            refreshTimes.append(sixAM)
+        }
+        
+        // 3. Next week (for week transitions)
+        if let nextWeek = calendar.date(byAdding: .weekOfYear, value: 1, to: startDate),
+           let nextWeekMidnight = nextMidnight(after: nextWeek) {
+            refreshTimes.append(nextWeekMidnight)
+        }
+        
+        // 4. Next month (for month transitions)
+        if let nextMonth = calendar.date(byAdding: .month, value: 1, to: startDate),
+           let nextMonthMidnight = nextMidnight(after: nextMonth) {
+            refreshTimes.append(nextMonthMidnight)
+        }
+        
+        // 5. Handle Daylight Saving Time transitions
+        if let dstTransition = nextDSTTransition(after: startDate) {
+            refreshTimes.append(dstTransition)
+        }
+        
+        // Sort and deduplicate
+        return Array(Set(refreshTimes)).sorted()
+    }
+    
+    private func nextMidnight(after date: Date) -> Date? {
+        // Get the start of the next day in the specified timezone
+        let startOfToday = calendar.startOfDay(for: date)
+        return calendar.date(byAdding: .day, value: 1, to: startOfToday)
+    }
+    
+    private func nextDSTTransition(after date: Date) -> Date? {
+        // Check for DST transitions in the next 3 months
+        let threeMonthsLater = calendar.date(byAdding: .month, value: 3, to: date) ?? date
+        
+        let interval = DateInterval(start: date, end: threeMonthsLater)
+        let transitions = timeZone.nextDaylightSavingTimeTransition(after: interval.start)
+        
+        if let transition = transitions, interval.contains(transition) {
+            // Return the midnight after the DST transition
+            return nextMidnight(after: transition)
+        }
+        
+        return nil
+    }
+    
+    private func generateCalendarDays(for date: Date) -> [CalendarDay] {
+        let startOfMonth = calendar.dateInterval(of: .month, for: date)?.start ?? date
+        let firstWeekday = calendar.component(.weekday, from: startOfMonth)
+        let daysInMonth = calendar.range(of: .day, in: .month, for: date)?.count ?? 0
+        
+        var allCalendarDays: [CalendarDay] = []
+        
+        // Convert Sunday=1, Monday=2, etc. to Monday=0, Tuesday=1, etc.
+        let mondayBasedWeekday = firstWeekday == 1 ? 6 : firstWeekday - 2
+        
+        // Previous month days
+        if mondayBasedWeekday > 0 {
+            let previousMonth = calendar.date(byAdding: .month, value: -1, to: date) ?? date
+            let daysInPreviousMonth = calendar.range(of: .day, in: .month, for: previousMonth)?.count ?? 0
+            let startDay = daysInPreviousMonth - mondayBasedWeekday + 1
+            
+            for day in startDay...daysInPreviousMonth {
+                allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .previous))
+            }
+        }
+        
+        // Current month days
+        for day in 1...daysInMonth {
+            allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: true, monthType: .current))
+        }
+        
+        // Next month days (to complete the grid)
+        let totalDaysIncludingCurrent = mondayBasedWeekday + daysInMonth
+        let weeksNeeded = Int(ceil(Double(totalDaysIncludingCurrent) / 7.0))
+        let totalDaysInGrid = weeksNeeded * 7
+        let remainingDays = totalDaysInGrid - totalDaysIncludingCurrent
+        
+        if remainingDays > 0 {
+            let nextMonth = calendar.date(byAdding: .month, value: 1, to: date) ?? date
+            let daysInNextMonth = calendar.range(of: .day, in: .month, for: nextMonth)?.count ?? 0
+            let maxDaysToShow = min(remainingDays, daysInNextMonth)
+            
+            for day in 1...maxDaysToShow {
+                allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .next))
+            }
+        }
+        
+        return allCalendarDays
+    }
+    
+    private func createSampleCalendarDays() -> [CalendarDay] {
+        var sampleDays: [CalendarDay] = []
+        
+        // Previous month days
+        for day in [28, 29, 30, 31] {
+            sampleDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .previous))
+        }
+        
+        // Current month days
+        for day in 1...31 {
+            sampleDays.append(CalendarDay(day: day, isCurrentMonth: true, monthType: .current))
+        }
+        
+        // Next month days
+        for day in [1, 2, 3, 4, 5, 6, 7] {
+            sampleDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .next))
+        }
+        
+        return sampleDays
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        formatter.timeZone = timeZone
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Main Calendar Widget
+struct WidgetExtension: Widget {
+    let kind: String = "KalendarWidgetExtension"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: MainWidgetTimelineProvider()) { entry in
+            KalendarWidgetExtensionEntryView(entry: entry)
+        }
+        .configurationDisplayName("Kalendar")
+        .description("Beautiful monthly calendar widget")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+    }
+}
+
 struct KalendarWidgetExtensionEntryView: View {
-    var entry: Provider.Entry
+    var entry: CalendarEntry
     @Environment(\.widgetFamily) var family
     
     var body: some View {
@@ -252,13 +303,9 @@ struct KalendarWidgetExtensionEntryView: View {
     }
 }
 
-
-
-
-
 // MARK: - Small Widget Content View
 struct SmallContentView: View {
-    let entry: SimpleEntry
+    let entry: CalendarEntry
     
     var body: some View {
         VStack(spacing: 8) {
@@ -335,7 +382,7 @@ struct SmallContentView: View {
 
 // MARK: - Medium Widget Content View
 struct MediumContentView: View {
-    let entry: SimpleEntry
+    let entry: CalendarEntry
     
     var body: some View {
         HStack(spacing: 12) {
@@ -410,7 +457,7 @@ struct MediumContentView: View {
 
 // MARK: - Large Widget (Replicates ContentView with larger sizes)
 struct LargeContentView: View {
-    let entry: SimpleEntry
+    let entry: CalendarEntry
     
     var body: some View {
         VStack(spacing: 0) {
@@ -426,16 +473,16 @@ struct LargeContentView: View {
     private var headerSection: some View {
         HStack {
             VStack(alignment: .leading, spacing: 8) {
-                            Text(entry.currentDayName)
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundColor(.primary)
+                Text(entry.currentDayName)
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
             
-            Text(entry.currentMonth)
-                .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundColor(.secondary)
-        }
+                Text(entry.currentMonth)
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundColor(.secondary)
+            }
         
-        Spacer()
+            Spacer()
         }
         .padding(.top, 12)
         .padding(.bottom, 20)
@@ -501,9 +548,7 @@ struct LargeContentView: View {
         Circle()
             .stroke(isCurrentMonth ? Color.blue : Color.gray.opacity(0.3), lineWidth: isCurrentMonth ? 1.5 : 1.0)
     }
-    
 
-    
     // MARK: - Bottom Info Section (Same as ContentView, larger)
     private var bottomInfoSection: some View {
         VStack(spacing: 10) {
@@ -534,17 +579,12 @@ struct LargeContentView: View {
     private var calendarColumns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
     }
-    
 }
-
-
-
-
 
 #Preview(as: .systemSmall) {
     WidgetExtension()
 } timeline: {
-    SimpleEntry(
+    CalendarEntry(
         date: Date(),
         selectedDate: Date(),
         currentMonth: "August",
@@ -602,7 +642,7 @@ struct LargeContentView: View {
 #Preview(as: .systemMedium) {
     WidgetExtension()
 } timeline: {
-    SimpleEntry(
+    CalendarEntry(
         date: Date(),
         selectedDate: Date(),
         currentMonth: "August",
@@ -660,7 +700,7 @@ struct LargeContentView: View {
 #Preview(as: .systemLarge) {
     WidgetExtension()
 } timeline: {
-    SimpleEntry(
+    CalendarEntry(
         date: Date(),
         selectedDate: Date(),
         currentMonth: "August",
@@ -719,8 +759,3 @@ struct LargeContentView: View {
         initialTime: Date()
     )
 }
-
-
-
-
-
