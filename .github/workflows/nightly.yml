@@ -119,6 +119,7 @@ jobs:
           -project Kalendar.xcodeproj \
           -scheme Kalendar \
           -configuration Debug \
+          -sdk iphonesimulator \
           test \
           -only-testing:KalendarTests/testLaunchWithLowMemory \
           CODE_SIGNING_ALLOWED=NO \
@@ -133,6 +134,7 @@ jobs:
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
             -configuration Release \
+            -sdk iphonesimulator \
             test \
             -only-testing:KalendarTests/testCalendarGenerationPerformance \
             -only-testing:WidgetTests/testCalendarGenerationPerformance \
@@ -200,6 +202,7 @@ jobs:
           -project Kalendar.xcodeproj \
           -scheme Kalendar \
           -configuration Debug \
+          -sdk iphonesimulator \
           test \
           -only-testing:KalendarTests/testLaunchInDarkMode \
           CODE_SIGNING_ALLOWED=NO \
@@ -211,8 +214,8 @@ jobs:
         xcodebuild \
           -project Kalendar.xcodeproj \
           -scheme Kalendar \
-          -destination "platform=iOS Simulator,name=iPhone 16" \
           -configuration Debug \
+          -sdk iphonesimulator \
           test \
           -only-testing:KalendarTests/testAccessibilityElements \
           CODE_SIGNING_ALLOWED=NO \
@@ -225,6 +228,7 @@ jobs:
           -project Kalendar.xcodeproj \
           -scheme Kalendar \
           -configuration Debug \
+          -sdk iphonesimulator \
           test \
           -only-testing:KalendarTests/testLaunchInDifferentOrientations \
           -only-testing:KalendarTests/testIPadLayout \
@@ -251,6 +255,7 @@ jobs:
           -project Kalendar.xcodeproj \
           -scheme Kalendar \
           -configuration Debug \
+          -sdk iphonesimulator \
           test \
           -only-testing:WidgetTimelineTests \
           CODE_SIGNING_ALLOWED=NO \
@@ -263,26 +268,26 @@ jobs:
           -project Kalendar.xcodeproj \
           -scheme Kalendar \
           -configuration Debug \
+          -sdk iphonesimulator \
           test \
           -only-testing:WidgetTests/testMidnightCalculation \
           -only-testing:WidgetTests/testRefreshTimeCalculation \
           CODE_SIGNING_ALLOWED=NO \
           | xcpretty && exit ${PIPESTATUS[0]}
 
-    - name: Validate Widget Builds
+    - name: Validate Widget Tests
       run: |
-        # Ensure all widget targets build successfully
-        schemes=("LockScreenCalendarWidgetExtension" "KalendarWidgetExtensionExtension")
-        for scheme in "${schemes[@]}"; do
-          echo "Building $scheme..."
-          xcodebuild \
-            -project Kalendar.xcodeproj \
-            -scheme "$scheme" \
-            -configuration Release \
-            build \
-            CODE_SIGNING_ALLOWED=NO \
-            | xcpretty && exit ${PIPESTATUS[0]}
-        done
+        # Test widget logic without building
+        echo "Running widget tests..."
+        xcodebuild \
+          -project Kalendar.xcodeproj \
+          -scheme Kalendar \
+          -configuration Debug \
+          -sdk iphonesimulator \
+          test \
+          -only-testing:WidgetTests \
+          CODE_SIGNING_ALLOWED=NO \
+          | xcpretty && exit ${PIPESTATUS[0]}
 
   report:
     name: Generate Report

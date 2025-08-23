@@ -10,9 +10,6 @@
 		41BF57B12E53C37A00517B50 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41BF523E2E535E1600517B50 /* WidgetKit.framework */; };
 		41BF57B22E53C37A00517B50 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41BF52402E535E1600517B50 /* SwiftUI.framework */; };
 		41BF57C72E53C45C00517B50 /* WidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 41BF57B02E53C37A00517B50 /* WidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		41FE45A12E55114500C0FF12 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41BF523E2E535E1600517B50 /* WidgetKit.framework */; };
-		41FE45A22E55114500C0FF12 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41BF52402E535E1600517B50 /* SwiftUI.framework */; };
-		41FE45AF2E55114700C0FF12 /* LockScreenCalendarWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 41FE45A02E55114500C0FF12 /* LockScreenCalendarWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -37,13 +34,6 @@
 			remoteGlobalIDString = 41BF57AF2E53C37A00517B50;
 			remoteInfo = WidgetExtensionExtension;
 		};
-		41FE45AD2E55114700C0FF12 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 41BF51FE2E535CD400517B50 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 41FE459F2E55114500C0FF12;
-			remoteInfo = LockScreenCalendarWidgetExtension;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -54,7 +44,6 @@
 			dstSubfolderSpec = 13;
 			files = (
 				41BF57C72E53C45C00517B50 /* WidgetExtensionExtension.appex in Embed Foundation Extensions */,
-				41FE45AF2E55114700C0FF12 /* LockScreenCalendarWidgetExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -68,7 +57,6 @@
 		41BF523E2E535E1600517B50 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		41BF52402E535E1600517B50 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		41BF57B02E53C37A00517B50 /* WidgetExtensionExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WidgetExtensionExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		41FE45A02E55114500C0FF12 /* LockScreenCalendarWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LockScreenCalendarWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -78,13 +66,6 @@
 				Info.plist,
 			);
 			target = 41BF57AF2E53C37A00517B50 /* WidgetExtensionExtension */;
-		};
-		41FE45B22E55114700C0FF12 /* Exceptions for "LockScreenCalendarWidget" folder in "LockScreenCalendarWidgetExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 41FE459F2E55114500C0FF12 /* LockScreenCalendarWidgetExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -114,9 +95,6 @@
 		};
 		41FE45A32E55114500C0FF12 /* LockScreenCalendarWidget */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				41FE45B22E55114700C0FF12 /* Exceptions for "LockScreenCalendarWidget" folder in "LockScreenCalendarWidgetExtension" target */,
-			);
 			path = LockScreenCalendarWidget;
 			sourceTree = "<group>";
 		};
@@ -153,15 +131,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		41FE459D2E55114500C0FF12 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				41FE45A22E55114500C0FF12 /* SwiftUI.framework in Frameworks */,
-				41FE45A12E55114500C0FF12 /* WidgetKit.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -186,7 +155,6 @@
 				41BF52132E535CD500517B50 /* KalendarTests.xctest */,
 				41BF521D2E535CD500517B50 /* KalendarUITests.xctest */,
 				41BF57B02E53C37A00517B50 /* WidgetExtensionExtension.appex */,
-				41FE45A02E55114500C0FF12 /* LockScreenCalendarWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -216,7 +184,6 @@
 			);
 			dependencies = (
 				41BF57C02E53C37B00517B50 /* PBXTargetDependency */,
-				41FE45AE2E55114700C0FF12 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				41BF52082E535CD400517B50 /* Kalendar */,
@@ -296,28 +263,6 @@
 			productReference = 41BF57B02E53C37A00517B50 /* WidgetExtensionExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-		41FE459F2E55114500C0FF12 /* LockScreenCalendarWidgetExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 41FE45B32E55114700C0FF12 /* Build configuration list for PBXNativeTarget "LockScreenCalendarWidgetExtension" */;
-			buildPhases = (
-				41FE459C2E55114500C0FF12 /* Sources */,
-				41FE459D2E55114500C0FF12 /* Frameworks */,
-				41FE459E2E55114500C0FF12 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				41FE45A32E55114500C0FF12 /* LockScreenCalendarWidget */,
-			);
-			name = LockScreenCalendarWidgetExtension;
-			packageProductDependencies = (
-			);
-			productName = LockScreenCalendarWidgetExtension;
-			productReference = 41FE45A02E55114500C0FF12 /* LockScreenCalendarWidgetExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -342,9 +287,6 @@
 					41BF57AF2E53C37A00517B50 = {
 						CreatedOnToolsVersion = 16.4;
 					};
-					41FE459F2E55114500C0FF12 = {
-						CreatedOnToolsVersion = 16.4;
-					};
 				};
 			};
 			buildConfigurationList = 41BF52012E535CD400517B50 /* Build configuration list for PBXProject "Kalendar" */;
@@ -364,7 +306,6 @@
 				41BF52122E535CD500517B50 /* KalendarTests */,
 				41BF521C2E535CD500517B50 /* KalendarUITests */,
 				41BF57AF2E53C37A00517B50 /* WidgetExtensionExtension */,
-				41FE459F2E55114500C0FF12 /* LockScreenCalendarWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -392,13 +333,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		41BF57AE2E53C37A00517B50 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		41FE459E2E55114500C0FF12 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -436,13 +370,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		41FE459C2E55114500C0FF12 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -460,11 +387,6 @@
 			isa = PBXTargetDependency;
 			target = 41BF57AF2E53C37A00517B50 /* WidgetExtensionExtension */;
 			targetProxy = 41BF57BF2E53C37B00517B50 /* PBXContainerItemProxy */;
-		};
-		41FE45AE2E55114700C0FF12 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 41FE459F2E55114500C0FF12 /* LockScreenCalendarWidgetExtension */;
-			targetProxy = 41FE45AD2E55114700C0FF12 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -601,7 +523,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -619,7 +541,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.Kalendar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
@@ -638,7 +560,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -656,7 +578,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.Kalendar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
@@ -674,11 +596,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.KalendarTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator ipados ipadosimulator";
@@ -697,11 +619,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.KalendarTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator ipados ipadosimulator";
@@ -719,11 +641,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.KalendarUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator ipados ipadosimulator";
@@ -741,11 +663,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.KalendarUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator ipados ipadosimulator";
@@ -765,7 +687,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = WidgetExtension/Info.plist;
@@ -777,7 +699,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.Kalendar.WidgetExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = NO;
@@ -793,7 +715,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = WidgetExtension/Info.plist;
@@ -805,64 +727,8 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.Kalendar.WidgetExtension;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		41FE45B02E55114700C0FF12 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
-				DEVELOPMENT_TEAM = VFCFJC7Y5J;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = LockScreenCalendarWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = LockScreenCalendarWidget;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.4.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.Kalendar.LockScreenCalendarWidget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		41FE45B12E55114700C0FF12 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
-				DEVELOPMENT_TEAM = VFCFJC7Y5J;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = LockScreenCalendarWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = LockScreenCalendarWidget;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.4.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.Kalendar.LockScreenCalendarWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -915,15 +781,6 @@
 			buildConfigurations = (
 				41BF57C42E53C37B00517B50 /* Debug */,
 				41BF57C52E53C37B00517B50 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		41FE45B32E55114700C0FF12 /* Build configuration list for PBXNativeTarget "LockScreenCalendarWidgetExtension" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				41FE45B02E55114700C0FF12 /* Debug */,
-				41FE45B12E55114700C0FF12 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

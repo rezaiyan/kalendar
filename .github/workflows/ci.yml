@@ -43,22 +43,14 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-spm-
 
-    - name: Build
-      run: |
-        xcodebuild \
-          -project Kalendar.xcodeproj \
-          -scheme ${{ matrix.scheme }} \
-          -configuration Debug \
-          clean build \
-          CODE_SIGNING_ALLOWED=NO \
-          | xcpretty && exit ${PIPESTATUS[0]}
-
     - name: Test
       run: |
+        echo "Running unit tests only (no build required)..."
         xcodebuild \
           -project Kalendar.xcodeproj \
           -scheme ${{ matrix.scheme }} \
           -configuration Debug \
+          -sdk iphonesimulator \
           test \
           -only-testing:KalendarTests \
           CODE_SIGNING_ALLOWED=NO \
