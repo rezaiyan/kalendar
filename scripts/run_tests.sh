@@ -15,8 +15,8 @@ NC='\033[0m' # No Color
 # Default values
 SCHEME="Kalendar"
 PROJECT="Kalendar.xcodeproj"
-DEVICE="iPhone 16"
-IOS_VERSION="18.6"
+DEVICE=""
+IOS_VERSION=""
 TEST_TYPE="all"
 GENERATE_REPORT=false
 VERBOSE=false
@@ -45,8 +45,8 @@ show_usage() {
     echo "Options:"
     echo "  -s, --scheme SCHEME           Xcode scheme to test (default: Kalendar)"
     echo "  -p, --project PROJECT         Xcode project (default: Kalendar.xcodeproj)"
-    echo "  -d, --device DEVICE           Test device (default: iPhone 16)"
-    echo "  -i, --ios-version VERSION     iOS version (default: 18.6)"
+    echo "  -d, --device DEVICE           Test device (not needed for unit tests)"
+    echo "  -i, --ios-version VERSION     iOS version (not needed for unit tests)"
     echo "  -t, --test-type TYPE          Test type: unit|widget|all (default: all)"
     echo "  -r, --report                  Generate test report"
     echo "  -v, --verbose                 Verbose output"
@@ -110,7 +110,7 @@ if [[ ! "$TEST_TYPE" =~ ^(unit|widget|all)$ ]]; then
 fi
 
 # Setup
-DESTINATION="platform=iOS Simulator,name=$DEVICE,OS=$IOS_VERSION"
+    DESTINATION=""
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 RESULTS_DIR="TestResults_$TIMESTAMP"
 XCPRETTY_OPTS=""
@@ -141,7 +141,6 @@ run_xcodebuild() {
     local cmd="xcodebuild \
         -project $PROJECT \
         -scheme $SCHEME \
-        -destination \"$DESTINATION\" \
         -configuration Debug \
         $build_action \
         $extra_args \
@@ -202,7 +201,6 @@ run_widget_tests() {
         if ! xcodebuild \
             -project "$PROJECT" \
             -scheme "$widget_scheme" \
-            -destination "$DESTINATION" \
             -configuration Debug \
             build \
             CODE_SIGNING_ALLOWED=NO > /dev/null 2>&1; then

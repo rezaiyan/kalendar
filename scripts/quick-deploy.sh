@@ -5,6 +5,19 @@
 
 set -e
 
+# Load environment variables from .env file if it exists
+if [[ -f ".env" ]]; then
+    echo "Loading environment variables from .env file..."
+    set -a  # Automatically export all variables
+    source .env
+    set +a  # Stop auto-exporting
+elif [[ -f "$(dirname "$0")/../.env" ]]; then
+    echo "Loading environment variables from .env file..."
+    set -a  # Automatically export all variables
+    source "$(dirname "$0")/../.env"
+    set +a  # Stop auto-exporting
+fi
+
 # Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -39,7 +52,8 @@ COMMANDS:
     release         Full release deployment with all checks
     development     Create development build for testing
     testflight      Create TestFlight build
-    appstore        Create App Store submission build
+    appstore        Create App Store submission build and upload
+    upload          Upload existing build to App Store Connect
     version         Show current version information
     help            Show this help message
 
@@ -47,7 +61,8 @@ EXAMPLES:
     $0 patch        # Quick patch deployment
     $0 minor        # Minor version update
     $0 testflight   # Build for TestFlight testing
-    $0 appstore     # Final App Store submission
+    $0 appstore     # Final App Store submission with upload
+    $0 upload       # Upload existing build to App Store Connect
     $0 version      # Check current version
 
 EOF
@@ -107,9 +122,32 @@ case "${1:-help}" in
         print_status "Ready for TestFlight upload!"
         ;;
     appstore)
-        print_status "🏪 Creating App Store build..."
+        print_status "🏪 Creating App Store build and uploading..."
+        echo "📋 This will:"
+        echo "   • Bump minor version"
+        echo "   • Build for App Store distribution"
+        echo "   • Upload to App Store Connect"
+        echo "   • Appear at https://appstoreconnect.apple.com"
+        echo ""
         ./scripts/deploy.sh -b minor -c Release -m app-store-connect
-        print_success "Ready for App Store submission!"
+        ;;
+    upload)
+        print_status "⬆️  Uploading to App Store Connect..."
+        echo "📋 This will upload the most recent build to App Store Connect"
+        echo "   • Must have valid App Store Connect credentials"
+        echo "   • Build will appear at https://appstoreconnect.apple.com"
+        echo ""
+        
+        # Find the most recent .ipa file
+        latest_ipa=$(find ./build -name "*.ipa" -type f -exec ls -t {} + 2>/dev/null | head -1)
+        if [[ -n "$latest_ipa" ]]; then
+            print_status "Found recent build: $(basename "$latest_ipa")"
+            # Use just export and upload, no building
+            ./scripts/deploy.sh --skip-version-bump --skip-build -c Release -m app-store-connect
+        else
+            print_warning "No existing .ipa found. Building new one..."
+            ./scripts/deploy.sh --skip-version-bump -c Release -m app-store-connect
+        fi
         ;;
     version)
         show_version_info

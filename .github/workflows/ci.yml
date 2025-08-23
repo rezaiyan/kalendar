@@ -17,10 +17,6 @@ jobs:
     strategy:
       matrix:
         scheme: [Kalendar]
-        destination: 
-          - 'platform=iOS Simulator,name=iPhone 16'
-          - 'platform=iOS Simulator,name=iPhone 16 Pro Max'
-          - 'platform=iOS Simulator,name=iPad (10th generation)'
     
     steps:
     - name: Checkout
@@ -47,28 +43,11 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-spm-
 
-    - name: List available simulators
-      run: |
-        echo "Available simulators:"
-        xcrun simctl list devices available
-        echo "Available runtimes:"
-        xcrun simctl list runtimes
-
     - name: Build
       run: |
-        # Try the specified destination first, fallback to available device if needed
-        DESTINATION="${{ matrix.destination }}"
-        echo "Attempting to build with destination: $DESTINATION"
-        
-        if ! xcrun simctl list devices | grep -q "$(echo "$DESTINATION" | sed 's/.*name=\([^,]*\).*/\1/')"; then
-          echo "Specified device not found, using fallback"
-          DESTINATION="platform=iOS Simulator,name=iPhone 16"
-        fi
-        
         xcodebuild \
           -project Kalendar.xcodeproj \
           -scheme ${{ matrix.scheme }} \
-          -destination "$DESTINATION" \
           -configuration Debug \
           clean build \
           CODE_SIGNING_ALLOWED=NO \
@@ -76,20 +55,12 @@ jobs:
 
     - name: Test
       run: |
-        # Use the same destination logic as build
-        DESTINATION="${{ matrix.destination }}"
-        
-        if ! xcrun simctl list devices | grep -q "$(echo "$DESTINATION" | sed 's/.*name=\([^,]*\).*/\1/')"; then
-          echo "Specified device not found, using fallback"
-          DESTINATION="platform=iOS Simulator,name=iPhone 16"
-        fi
-        
         xcodebuild \
           -project Kalendar.xcodeproj \
           -scheme ${{ matrix.scheme }} \
-          -destination "$DESTINATION" \
           -configuration Debug \
           test \
+          -only-testing:KalendarTests \
           CODE_SIGNING_ALLOWED=NO \
           | xcpretty && exit ${PIPESTATUS[0]}
 

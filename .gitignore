@@ -123,6 +123,11 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+# Environment variables
+.env
+.env.local
+.env.production
+
 # IDEs
 .vscode/
 .idea/

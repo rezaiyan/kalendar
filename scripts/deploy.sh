@@ -5,6 +5,19 @@
 
 set -e  # Exit on any error
 
+# Load environment variables from .env file if it exists
+if [[ -f ".env" ]]; then
+    echo "Loading environment variables from .env file..."
+    set -a  # Automatically export all variables
+    source .env
+    set +a  # Stop auto-exporting
+elif [[ -f "$(dirname "$0")/../.env" ]]; then
+    echo "Loading environment variables from .env file..."
+    set -a  # Automatically export all variables
+    source "$(dirname "$0")/../.env"
+    set +a  # Stop auto-exporting
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -19,6 +32,7 @@ CONFIGURATION="Release"
 BUMP_TYPE="patch"
 SKIP_TESTS=true
 SKIP_VERSION_BUMP=false
+SKIP_BUILD=false
 ARCHIVE_PATH=""
 EXPORT_PATH=""
 EXPORT_METHOD="development"
@@ -64,6 +78,7 @@ OPTIONS:
     -m, --method METHOD          Export method: development|app-store-connect|ad-hoc (default: development)
     --skip-tests                 Skip running tests before deployment
     --skip-version-bump          Skip version bumping
+    --skip-build                 Skip build process (for upload-only operations)
     -v, --verbose                Verbose output
     -h, --help                   Show this help message
 
@@ -119,6 +134,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-version-bump)
             SKIP_VERSION_BUMP=true
+            shift
+            ;;
+        --skip-build)
+            SKIP_BUILD=true
             shift
             ;;
         -v|--verbose)
@@ -247,13 +266,12 @@ bump_version() {
 run_tests() {
     print_status "Running tests before deployment..."
     
-    local test_destination="platform=iOS Simulator,name=iPhone 16"
+    local test_destination=""
     
     print_verbose "Running unit tests..."
     if ! xcodebuild test \
         -project "$PROJECT" \
         -scheme "$SCHEME" \
-        -destination "$test_destination" \
         -only-testing:KalendarTests \
         CODE_SIGNING_ALLOWED=NO \
         > /dev/null 2>&1; then
@@ -401,6 +419,71 @@ EOF
     print_status "Export location: $EXPORT_PATH"
 }
 
+# Function to upload to App Store Connect
+upload_to_appstore() {
+    if [[ "$EXPORT_METHOD" != "app-store-connect" ]]; then
+        print_verbose "Skipping App Store Connect upload (export method: $EXPORT_METHOD)"
+        return 0
+    fi
+    
+    print_status "Uploading to App Store Connect..."
+    
+    # Find the .ipa file in the export directory
+    local ipa_file=$(find "$EXPORT_PATH" -name "*.ipa" | head -1)
+    
+    if [[ -z "$ipa_file" ]]; then
+        print_error "No .ipa file found in export directory: $EXPORT_PATH"
+        exit 1
+    fi
+    
+    print_status "Found IPA: $(basename "$ipa_file")"
+    
+    # Upload using xcrun altool (legacy) or notarytool (newer)
+    if command -v xcrun >/dev/null 2>&1; then
+        print_status "Uploading using xcrun altool..."
+        
+        if ! xcrun altool --upload-app \
+            --type ios \
+            --file "$ipa_file" \
+            --username "${APP_STORE_CONNECT_USERNAME:-}" \
+            --password "${APP_STORE_CONNECT_PASSWORD:-}" \
+            --verbose; then
+                
+            print_warning "altool upload failed, trying with App Store Connect API key..."
+            
+            # Try with API key if username/password failed
+            if [[ -n "${APP_STORE_CONNECT_API_KEY_PATH:-}" ]]; then
+                if ! xcrun altool --upload-app \
+                    --type ios \
+                    --file "$ipa_file" \
+                    --apiKey "${APP_STORE_CONNECT_API_KEY_ID:-}" \
+                    --apiIssuer "${APP_STORE_CONNECT_API_ISSUER_ID:-}" \
+                    --verbose; then
+                    print_error "Failed to upload to App Store Connect"
+                    exit 1
+                fi
+            else
+                print_error "App Store Connect upload failed. Please check credentials."
+                print_status "Required environment variables:"
+                print_status "  APP_STORE_CONNECT_USERNAME (Apple ID)"
+                print_status "  APP_STORE_CONNECT_PASSWORD (App-specific password)"
+                print_status "Or for API key authentication:"
+                print_status "  APP_STORE_CONNECT_API_KEY_ID"
+                print_status "  APP_STORE_CONNECT_API_ISSUER_ID"
+                print_status "  APP_STORE_CONNECT_API_KEY_PATH"
+                exit 1
+            fi
+        fi
+    else
+        print_error "xcrun not found. Please install Xcode Command Line Tools."
+        exit 1
+    fi
+    
+    print_success "Successfully uploaded to App Store Connect!"
+    print_status "Build will appear at: https://appstoreconnect.apple.com"
+    print_status "It may take a few minutes to process and appear in the builds list."
+}
+
 # Function to generate release notes
 generate_release_notes() {
     local version="$1"
@@ -496,9 +579,25 @@ main() {
     fi
     
     # Clean and build
-    clean_build
-    create_archive
-    export_archive
+    if [[ "$SKIP_BUILD" == "false" ]]; then
+        clean_build
+        create_archive
+        export_archive
+    else
+        print_status "Skipping build process..."
+        # For upload-only, we need to find the most recent archive
+        if [[ -z "$ARCHIVE_PATH" ]]; then
+            ARCHIVE_PATH=$(find ./build -name "*.xcarchive" -type d -exec ls -dt {} + 2>/dev/null | head -1)
+            if [[ -z "$ARCHIVE_PATH" ]]; then
+                print_error "No existing archive found and --skip-build specified"
+                print_status "Please build first or remove --skip-build flag"
+                exit 1
+            fi
+            print_status "Using existing archive: $(basename "$ARCHIVE_PATH")"
+        fi
+        export_archive
+    fi
+    upload_to_appstore
     
     # Generate documentation
     generate_release_notes "$new_version"
