@@ -261,8 +261,17 @@ class KalendarXCTests: XCTestCase {
     // MARK: - Error Handling Tests
     func testInvalidDateHandling() throws {
         let calendar = Calendar.current
-        let invalidDate = calendar.date(from: DateComponents(year: 2024, month: 13, day: 32))
-        XCTAssertNil(invalidDate, "Invalid date should return nil")
+        
+        // Test that Calendar handles invalid components by rolling them over
+        let rolledOverDate = calendar.date(from: DateComponents(year: 2024, month: 13, day: 32))
+        XCTAssertNotNil(rolledOverDate, "Calendar should handle invalid components by rolling over")
+        
+        // Verify the rolled over date is valid
+        if let rolledDate = rolledOverDate {
+            let components = calendar.dateComponents([.year, .month, .day], from: rolledDate)
+            XCTAssertTrue(components.month! <= 12, "Month should be valid after rollover")
+            XCTAssertTrue(components.day! <= 31, "Day should be valid after rollover")
+        }
         
         let validDate = calendar.date(from: DateComponents(year: 2024, month: 12, day: 31))
         XCTAssertNotNil(validDate, "Valid date should not return nil")
