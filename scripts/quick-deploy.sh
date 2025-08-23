@@ -99,16 +99,16 @@ case "${1:-help}" in
         ;;
     development)
         print_status "🛠️ Creating development build..."
-        ./scripts/deploy.sh -c Debug --skip-version-bump
+        ./scripts/deploy.sh -c Debug --skip-version-bump -m development
         ;;
     testflight)
         print_status "✈️ Creating TestFlight build..."
-        ./scripts/deploy.sh -b patch -c Release
+        ./scripts/deploy.sh -b patch -c Release -m development
         print_status "Ready for TestFlight upload!"
         ;;
     appstore)
         print_status "🏪 Creating App Store build..."
-        ./scripts/deploy.sh -b minor -c Release
+        ./scripts/deploy.sh -b minor -c Release -m app-store-connect
         print_success "Ready for App Store submission!"
         ;;
     version)

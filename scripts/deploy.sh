@@ -21,6 +21,7 @@ SKIP_TESTS=true
 SKIP_VERSION_BUMP=false
 ARCHIVE_PATH=""
 EXPORT_PATH=""
+EXPORT_METHOD="development"
 VERBOSE=false
 
 # Print functions
@@ -60,6 +61,7 @@ OPTIONS:
     -b, --bump TYPE              Version bump type: major|minor|patch (default: patch)
     -a, --archive-path PATH      Custom archive output path
     -e, --export-path PATH       Custom export output path
+    -m, --method METHOD          Export method: development|app-store-connect|ad-hoc (default: development)
     --skip-tests                 Skip running tests before deployment
     --skip-version-bump          Skip version bumping
     -v, --verbose                Verbose output
@@ -107,6 +109,10 @@ while [[ $# -gt 0 ]]; do
             EXPORT_PATH="$2"
             shift 2
             ;;
+        -m|--method)
+            EXPORT_METHOD="$2"
+            shift 2
+            ;;
         --skip-tests)
             SKIP_TESTS=true
             shift
@@ -142,6 +148,13 @@ fi
 if [[ ! "$CONFIGURATION" =~ ^(Debug|Release)$ ]]; then
     print_error "Invalid configuration: $CONFIGURATION"
     print_error "Valid configurations: Debug, Release"
+    exit 1
+fi
+
+# Validate export method
+if [[ ! "$EXPORT_METHOD" =~ ^(development|app-store-connect|ad-hoc)$ ]]; then
+    print_error "Invalid export method: $EXPORT_METHOD"
+    print_error "Valid methods: development, app-store-connect, ad-hoc"
     exit 1
 fi
 
@@ -299,11 +312,37 @@ create_archive() {
 export_archive() {
     print_status "Exporting archive for distribution..."
     
-    # Create export options plist
+    # Create export options based on method
     local export_options_plist="./build/ExportOptions.plist"
     mkdir -p "$(dirname "$export_options_plist")"
     
-    cat > "$export_options_plist" << EOF
+    case "$EXPORT_METHOD" in
+        "development")
+            cat > "$export_options_plist" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>development</string>
+    <key>uploadBitcode</key>
+    <false/>
+    <key>uploadSymbols</key>
+    <true/>
+    <key>compileBitcode</key>
+    <false/>
+    <key>signingStyle</key>
+    <string>automatic</string>
+    <key>stripSwiftSymbols</key>
+    <false/>
+    <key>destination</key>
+    <string>export</string>
+</dict>
+</plist>
+EOF
+            ;;
+        "app-store-connect")
+            cat > "$export_options_plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -323,6 +362,30 @@ export_archive() {
 </dict>
 </plist>
 EOF
+            ;;
+        "ad-hoc")
+            cat > "$export_options_plist" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>ad-hoc</string>
+    <key>uploadBitcode</key>
+    <false/>
+    <key>uploadSymbols</key>
+    <true/>
+    <key>compileBitcode</key>
+    <false/>
+    <key>signingStyle</key>
+    <string>automatic</string>
+    <key>stripSwiftSymbols</key>
+    <true/>
+</dict>
+</plist>
+EOF
+            ;;
+    esac
     
     print_verbose "Export options created: $export_options_plist"
     

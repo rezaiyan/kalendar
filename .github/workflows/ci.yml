@@ -18,9 +18,9 @@ jobs:
       matrix:
         scheme: [Kalendar]
         destination: 
-          - 'platform=iOS Simulator,name=iPhone 16,OS=18.1'
-          - 'platform=iOS Simulator,name=iPhone 16 Pro Max,OS=18.1'
-          - 'platform=iOS Simulator,name=iPad Pro (12.9-inch) (6th generation),OS=18.1'
+          - 'platform=iOS Simulator,name=iPhone 16'
+          - 'platform=iOS Simulator,name=iPhone 16 Pro Max'
+          - 'platform=iOS Simulator,name=iPad (10th generation)'
     
     steps:
     - name: Checkout
@@ -48,14 +48,27 @@ jobs:
           ${{ runner.os }}-spm-
 
     - name: List available simulators
-      run: xcrun simctl list devices available
+      run: |
+        echo "Available simulators:"
+        xcrun simctl list devices available
+        echo "Available runtimes:"
+        xcrun simctl list runtimes
 
     - name: Build
       run: |
+        # Try the specified destination first, fallback to available device if needed
+        DESTINATION="${{ matrix.destination }}"
+        echo "Attempting to build with destination: $DESTINATION"
+        
+        if ! xcrun simctl list devices | grep -q "$(echo "$DESTINATION" | sed 's/.*name=\([^,]*\).*/\1/')"; then
+          echo "Specified device not found, using fallback"
+          DESTINATION="platform=iOS Simulator,name=iPhone 16"
+        fi
+        
         xcodebuild \
           -project Kalendar.xcodeproj \
           -scheme ${{ matrix.scheme }} \
-          -destination "${{ matrix.destination }}" \
+          -destination "$DESTINATION" \
           -configuration Debug \
           clean build \
           CODE_SIGNING_ALLOWED=NO \
@@ -63,10 +76,18 @@ jobs:
 
     - name: Test
       run: |
+        # Use the same destination logic as build
+        DESTINATION="${{ matrix.destination }}"
+        
+        if ! xcrun simctl list devices | grep -q "$(echo "$DESTINATION" | sed 's/.*name=\([^,]*\).*/\1/')"; then
+          echo "Specified device not found, using fallback"
+          DESTINATION="platform=iOS Simulator,name=iPhone 16"
+        fi
+        
         xcodebuild \
           -project Kalendar.xcodeproj \
           -scheme ${{ matrix.scheme }} \
-          -destination "${{ matrix.destination }}" \
+          -destination "$DESTINATION" \
           -configuration Debug \
           test \
           CODE_SIGNING_ALLOWED=NO \
@@ -101,7 +122,7 @@ jobs:
         xcodebuild \
           -project Kalendar.xcodeproj \
           -scheme Kalendar \
-          -destination "platform=iOS Simulator,name=iPhone 16,OS=18.1" \
+          -destination "platform=iOS Simulator,name=iPhone 16" \
           -configuration Debug \
           build \
           CODE_SIGNING_ALLOWED=NO \
@@ -131,7 +152,7 @@ jobs:
         xcodebuild \
           -project Kalendar.xcodeproj \
           -scheme Kalendar \
-          -destination "platform=iOS Simulator,name=iPhone 16,OS=18.1" \
+          -destination "platform=iOS Simulator,name=iPhone 16" \
           -configuration Debug \
           analyze \
           CODE_SIGNING_ALLOWED=NO \
@@ -178,7 +199,7 @@ jobs:
         xcodebuild \
           -project Kalendar.xcodeproj \
           -scheme Kalendar \
-          -destination "platform=iOS Simulator,name=iPhone 16,OS=18.1" \
+          -destination "platform=iOS Simulator,name=iPhone 16" \
           -configuration Debug \
           test \
           -enableCodeCoverage YES \
@@ -210,7 +231,7 @@ jobs:
         xcodebuild \
           -project Kalendar.xcodeproj \
           -scheme Kalendar \
-          -destination "platform=iOS Simulator,name=iPhone 16,OS=18.1" \
+          -destination "platform=iOS Simulator,name=iPhone 16" \
           -configuration Release \
           test \
           -only-testing:KalendarTests/testCalendarGenerationPerformance \
