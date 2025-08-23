@@ -12,7 +12,7 @@ env:
 jobs:
   test:
     name: Test
-    runs-on: macos-15
+    runs-on: macos-14
     strategy:
       matrix:
         scheme: [Kalendar]
@@ -46,10 +46,10 @@ jobs:
         id: sim
         uses: futureware-tech/simulator-action@v4
         with:
-          model: 'iPhone 14'          # keep it common; you can switch to 'iPhone 16' later
-          os: iOS                     # omit os_version to be flexible across runners
-          erase_before_boot: true
+          model: 'iPhone 14'    # keep model-only for stability across runner updates
+          os: iOS
           wait_for_boot: true
+          erase_before_boot: true
           shutdown_after_job: true
 
       - name: Test
@@ -75,7 +75,7 @@ jobs:
 
   widget-test:
     name: Widget Tests
-    runs-on: macos-15
+    runs-on: macos-14
 
     steps:
       - name: Checkout
@@ -92,8 +92,8 @@ jobs:
         with:
           model: 'iPhone 14'
           os: iOS
-          erase_before_boot: true
           wait_for_boot: true
+          erase_before_boot: true
           shutdown_after_job: true
 
       - name: Build app (includes widget extensions)
@@ -109,7 +109,7 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: macos-15
+    runs-on: macos-14
 
     steps:
       - name: Checkout
@@ -138,7 +138,7 @@ jobs:
 
   security:
     name: Security Scan
-    runs-on: macos-15
+    runs-on: macos-14
 
     steps:
       - name: Checkout
@@ -159,7 +159,7 @@ jobs:
 
   coverage:
     name: Code Coverage
-    runs-on: macos-15
+    runs-on: macos-14
     needs: test
 
     steps:
@@ -177,8 +177,8 @@ jobs:
         with:
           model: 'iPhone 14'
           os: iOS
-          erase_before_boot: true
           wait_for_boot: true
+          erase_before_boot: true
           shutdown_after_job: true
 
       - name: Test with Coverage
@@ -202,7 +202,7 @@ jobs:
 
   performance:
     name: Performance Tests
-    runs-on: macos-15
+    runs-on: macos-14
 
     steps:
       - name: Checkout
@@ -219,8 +219,8 @@ jobs:
         with:
           model: 'iPhone 14'
           os: iOS
-          erase_before_boot: true
           wait_for_boot: true
+          erase_before_boot: true
           shutdown_after_job: true
 
       - name: Run Performance Tests
@@ -245,7 +245,7 @@ jobs:
 
   build-release:
     name: Build Release
-    runs-on: macos-15
+    runs-on: macos-14
     if: github.ref == 'refs/heads/main'
     needs: [test, widget-test, lint, security]
 
@@ -264,8 +264,8 @@ jobs:
         with:
           model: 'iPhone 14'
           os: iOS
-          erase_before_boot: true
           wait_for_boot: true
+          erase_before_boot: true
           shutdown_after_job: true
 
       - name: Build Release (archive)
