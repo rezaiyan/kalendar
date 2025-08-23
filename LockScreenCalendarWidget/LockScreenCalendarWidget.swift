@@ -1,29 +1,48 @@
 //
-//  KalendarWidgetExtension.swift
-//  KalendarWidgetExtension
+//  LockScreenCalendarWidget.swift
+//  LockScreenCalendarWidget
 //
-//  Created by Ali Rezaiyan on 18.08.25.
+//  Created by Ali Rezaiyan on 19.08.25.
 //
 
 import WidgetKit
 import SwiftUI
 
-// MARK: - Main Calendar Widget
-struct WidgetExtension: Widget {
-    let kind: String = "KalendarWidgetExtension"
-
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: Provider()) { entry in
-            KalendarWidgetExtensionEntryView(entry: entry)
-        }
-        .configurationDisplayName("Kalendar")
-        .description("Beautiful monthly calendar widget")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+// MARK: - Calendar Day Helper
+struct CalendarDay: Identifiable, Hashable {
+    let id = UUID()
+    let day: Int
+    let isCurrentMonth: Bool
+    let monthType: MonthType
+    
+    enum MonthType {
+        case previous
+        case current
+        case next
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: CalendarDay, rhs: CalendarDay) -> Bool {
+        lhs.id == rhs.id
     }
 }
 
+// MARK: - Calendar Entry
+struct SimpleEntry: TimelineEntry {
+    let date: Date
+    let selectedDate: Date
+    let currentMonth: String
+    let currentDayName: String
+    let currentTime: String
+    let allCalendarDays: [CalendarDay]
+    let weekdaySymbols: [String]
+    let initialTime: Date
+}
 
-
+// MARK: - Timeline Provider
 struct Provider: TimelineProvider {
     typealias Entry = SimpleEntry
     
@@ -92,10 +111,6 @@ struct Provider: TimelineProvider {
         completion(timeline)
     }
     
-
-    
-
-    
     private func createEntry(for date: Date) -> SimpleEntry {
         var calendar = Calendar(identifier: .gregorian)
         calendar.firstWeekday = 2 // 2 = Monday, 1 = Sunday
@@ -109,7 +124,6 @@ struct Provider: TimelineProvider {
         var nextMonthDays: [Int] = []
         
         // Convert Sunday=1, Monday=2, etc. to Monday=0, Tuesday=1, etc.
-        // Sunday=1 → 0, Monday=2 → 1, Tuesday=3 → 2, etc.
         let mondayBasedWeekday = firstWeekday == 1 ? 6 : firstWeekday - 2
         
         // Calculate days needed from previous month to fill first week
@@ -129,27 +143,14 @@ struct Provider: TimelineProvider {
         }
         
         // Calculate days needed from next month to complete the grid
-        // Ensure we always show complete weeks (multiples of 7)
         let totalDaysIncludingCurrent = mondayBasedWeekday + daysInMonth
         let weeksNeeded = Int(ceil(Double(totalDaysIncludingCurrent) / 7.0))
         let totalDaysInGrid = weeksNeeded * 7
         let remainingDays = totalDaysInGrid - totalDaysIncludingCurrent
         
-        // Debug: Print calendar calculation details
-        print("Calendar Debug - Date: \(date)")
-        print("  First weekday: \(firstWeekday) -> Monday-based: \(mondayBasedWeekday)")
-        print("  Days in month: \(daysInMonth)")
-        print("  Previous month days: \(previousMonthDays.count)")
-        print("  Current month days: \(days.count)")
-        print("  Total including current: \(totalDaysIncludingCurrent)")
-        print("  Weeks needed: \(weeksNeeded)")
-        print("  Total grid: \(totalDaysInGrid)")
-        print("  Remaining days: \(remainingDays)")
-        print("  Next month days: \(nextMonthDays.count)")
-        
         if remainingDays > 0 {
             let nextMonth = calendar.date(byAdding: .month, value: 1, to: date) ?? date
-            let daysInNextMonth = calendar.range(of: .day, in: .month, for: nextMonth)?.count ?? 0
+            let daysInNextMonth = calendar.range(of: .day, in: .month, for: date)?.count ?? 0
             let maxDaysToShow = min(remainingDays, daysInNextMonth)
             
             for day in 1...maxDaysToShow {
@@ -176,7 +177,6 @@ struct Provider: TimelineProvider {
         }
         
         let formatter = DateFormatter()
-        // Use current locale for other formatting
         formatter.locale = Locale.current
         
         let monthFormatter = DateFormatter()
@@ -196,201 +196,122 @@ struct Provider: TimelineProvider {
             currentTime: timeFormatter.string(from: date),
             allCalendarDays: allCalendarDays,
             weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-            initialTime: date // Store the initial time for local updates
+            initialTime: date
         )
     }
 }
 
-struct SimpleEntry: TimelineEntry {
-    let date: Date
-    let selectedDate: Date
-    let currentMonth: String
-    let currentDayName: String
-    let currentTime: String
-    let allCalendarDays: [CalendarDay] // All days in the grid with metadata
-    let weekdaySymbols: [String]
-    let initialTime: Date // Store the initial time for local updates
-}
-
-// Helper struct for calendar days with unique identifiers
-struct CalendarDay: Identifiable, Hashable {
-    let id = UUID()
-    let day: Int
-    let isCurrentMonth: Bool
-    let monthType: MonthType
-    
-    enum MonthType {
-        case previous
-        case current
-        case next
-    }
-    
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-    
-    static func == (lhs: CalendarDay, rhs: CalendarDay) -> Bool {
-        lhs.id == rhs.id
-    }
-}
-
-struct KalendarWidgetExtensionEntryView: View {
-    var entry: Provider.Entry
+// MARK: - Lock Screen Calendar Widget Entry View
+struct LockScreenCalendarWidgetEntryView: View {
+    var entry: SimpleEntry
     @Environment(\.widgetFamily) var family
     
     var body: some View {
         switch family {
         case .systemSmall:
-            SmallContentView(entry: entry)
+            LockScreenSmallView(entry: entry)
         case .systemMedium:
-            MediumContentView(entry: entry)
-        case .systemLarge:
-            LargeContentView(entry: entry)
+            LockScreenMediumView(entry: entry)
         default:
-            LargeContentView(entry: entry)
+            LockScreenSmallView(entry: entry)
         }
     }
 }
 
-
-
-
-
-// MARK: - Small Widget Content View
-struct SmallContentView: View {
+// MARK: - Lock Screen Small View
+struct LockScreenSmallView: View {
     let entry: SimpleEntry
     
     var body: some View {
-        VStack(spacing: 8) {
-            // Compact header
-            VStack(alignment: .leading, spacing: 4) {
-                Text(entry.currentDayName)
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
-                
-                Text(entry.currentMonth)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            
-            // Compact calendar grid (3x3 showing current week + next week preview)
-            compactCalendarGrid
-            
-            Spacer()
-        }
-        .padding(8)
-    }
-    
-    private var compactCalendarGrid: some View {
-        VStack(spacing: 4) {
-            // Weekday headers (abbreviated)
-            HStack(spacing: 0) {
-                ForEach(["M", "T", "W", "T", "F", "S", "S"], id: \.self) { day in
-                    Text(day)
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            
-            // Compact 3x3 grid showing current week and next week preview
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 2) {
-                ForEach(0..<21, id: \.self) { index in
-                    if index < entry.allCalendarDays.count {
-                        let calendarDay = entry.allCalendarDays[index]
-                        compactDayView(for: calendarDay.day, isCurrentMonth: calendarDay.isCurrentMonth)
-                    }
-                }
-            }
-        }
-    }
-    
-    private func compactDayView(for day: Int, isCurrentMonth: Bool) -> some View {
-        Text("\(day)")
-            .font(.system(size: 10, weight: .medium, design: .rounded))
-            .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
-            .opacity(isCurrentMonth ? 1.0 : 0.4)
-            .frame(width: 18, height: 18)
-            .background(
-                Group {
-                    if day == Calendar.current.component(.day, from: entry.date) {
-                        dayGradient
-                    } else {
-                        Color.clear
-                    }
-                }
-            )
-            .clipShape(Circle())
-    }
-    
-    private var dayGradient: LinearGradient {
-        LinearGradient(
-            colors: [.blue, .purple],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-}
-
-// MARK: - Medium Widget Content View
-struct MediumContentView: View {
-    let entry: SimpleEntry
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // Left side: Date info
-            VStack(alignment: .leading, spacing: 6) {
-                Text(entry.currentDayName)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+        VStack(spacing: 6) {
+            // Current date prominently displayed
+            VStack(spacing: 2) {
+                Text("\(Calendar.current.component(.day, from: entry.date))")
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.primary)
                 
                 Text(entry.currentMonth)
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundColor(.secondary)
+            }
+            
+            // Day of week
+            Text(entry.currentDayName)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(lockScreenBackground)
+        .widgetURL(URL(string: "kalendar://calendar"))
+    }
+    
+    private var lockScreenBackground: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(.ultraThinMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(.quaternary, lineWidth: 0.5)
+            )
+    }
+}
+
+// MARK: - Lock Screen Medium View
+struct LockScreenMediumView: View {
+    let entry: SimpleEntry
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Left side: Large current date
+            VStack(spacing: 4) {
+                Text("\(Calendar.current.component(.day, from: entry.date))")
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
                 
-                Text(entry.currentTime)
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
+                Text(entry.currentMonth)
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundColor(.secondary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
             
-            // Right side: Compact calendar
-            VStack(spacing: 8) {
-                // Weekday headers
+            // Right side: Mini calendar preview
+            VStack(spacing: 6) {
+                // Weekday headers (very compact)
                 HStack(spacing: 0) {
                     ForEach(["M", "T", "W", "T", "F", "S", "S"], id: \.self) { day in
                         Text(day)
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .font(.system(size: 8, weight: .semibold, design: .rounded))
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity)
                     }
                 }
                 
-                // 4x4 calendar grid
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 7), spacing: 3) {
-                    ForEach(0..<28, id: \.self) { index in
+                // Mini 2x2 calendar grid showing current week
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 2) {
+                    ForEach(0..<14, id: \.self) { index in
                         if index < entry.allCalendarDays.count {
                             let calendarDay = entry.allCalendarDays[index]
-                            mediumDayView(for: calendarDay.day, isCurrentMonth: calendarDay.isCurrentMonth)
+                            miniDayView(for: calendarDay.day, isCurrentMonth: calendarDay.isCurrentMonth)
                         }
                     }
                 }
             }
         }
         .padding(12)
+        .background(lockScreenBackground)
+        .widgetURL(URL(string: "kalendar://calendar"))
     }
     
-    private func mediumDayView(for day: Int, isCurrentMonth: Bool) -> some View {
+    private func miniDayView(for day: Int, isCurrentMonth: Bool) -> some View {
         Text("\(day)")
-            .font(.system(size: 11, weight: .medium, design: .rounded))
+            .font(.system(size: 8, weight: .medium, design: .rounded))
             .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
             .opacity(isCurrentMonth ? 1.0 : 0.4)
-            .frame(width: 20, height: 20)
+            .frame(width: 14, height: 14)
             .background(
                 Group {
                     if day == Calendar.current.component(.day, from: entry.date) {
-                        dayGradient
+                        miniDayGradient
                     } else {
                         Color.clear
                     }
@@ -399,150 +320,48 @@ struct MediumContentView: View {
             .clipShape(Circle())
     }
     
-    private var dayGradient: LinearGradient {
+    private var miniDayGradient: LinearGradient {
         LinearGradient(
             colors: [.blue, .purple],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
     }
+    
+    private var lockScreenBackground: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(.ultraThinMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(.quaternary, lineWidth: 0.5)
+            )
+    }
 }
 
-// MARK: - Large Widget (Replicates ContentView with larger sizes)
-struct LargeContentView: View {
-    let entry: SimpleEntry
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            headerSection
-            calendarSection
-            Spacer()
-            bottomInfoSection
-        }
-        .padding(12)
-    }
-    
-    // MARK: - Header Section (Same as ContentView, larger)
-    private var headerSection: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 8) {
-                            Text(entry.currentDayName)
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundColor(.primary)
-            
-            Text(entry.currentMonth)
-                .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundColor(.secondary)
-        }
-        
-        Spacer()
-        }
-        .padding(.top, 12)
-        .padding(.bottom, 20)
-    }
-    
-    // MARK: - Calendar Section (Same as ContentView, larger)
-    private var calendarSection: some View {
-        VStack(spacing: 16) {
-            weekdayHeaders
-            calendarGrid
-        }
-    }
-    
-    // MARK: - Weekday Headers (Same as ContentView, larger)
-    private var weekdayHeaders: some View {
-        HStack(spacing: 0) {
-            ForEach(entry.weekdaySymbols, id: \.self) { day in
-                Text(day)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity)
-            }
-        }
-        .padding(.horizontal, 16)
-    }
-    
-    // MARK: - Calendar Grid (Same as ContentView, larger)
-    private var calendarGrid: some View {
-        LazyVGrid(columns: calendarColumns, spacing: 6) {
-            ForEach(entry.allCalendarDays) { calendarDay in
-                calendarDayView(for: calendarDay.day, isCurrentMonth: calendarDay.isCurrentMonth)
-            }
-        }
-        .padding(.horizontal, 16)
-    }
-    
-    // MARK: - Calendar Day View (Same as ContentView, larger)
-    private func calendarDayView(for day: Int, isCurrentMonth: Bool) -> some View {
-        Text("\(day)")
-            .font(.system(size: 16, weight: .medium, design: .rounded))
-            .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
-            .opacity(isCurrentMonth ? 1.0 : 0.4)
-            .frame(width: 28, height: 28)
-            .background(dayBackground(for: day, isCurrentMonth: isCurrentMonth))
-            .overlay(dayOverlay(for: day, isCurrentMonth: isCurrentMonth))
-    }
-    
-    // MARK: - Day Background (Same as ContentView)
-    private func dayBackground(for day: Int, isCurrentMonth: Bool) -> some View {
-        Group {
-            if day == Calendar.current.component(.day, from: entry.date) {
-                Circle()
-                    .fill(dayGradient)
+// MARK: - Lock Screen Calendar Widget
+struct LockScreenCalendarWidget: Widget {
+    let kind: String = "LockScreenCalendarWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            if #available(iOS 17.0, *) {
+                LockScreenCalendarWidgetEntryView(entry: entry)
+                    .containerBackground(.fill.tertiary, for: .widget)
             } else {
-                // No background for non-today days
-                Color.clear
+                LockScreenCalendarWidgetEntryView(entry: entry)
+                    .padding()
+                    .background()
             }
         }
+        .configurationDisplayName("Lock Screen Calendar")
+        .description("Compact calendar for lock screen")
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
-    
-    // MARK: - Day Overlay (Same as ContentView)
-    private func dayOverlay(for day: Int, isCurrentMonth: Bool) -> some View {
-        Circle()
-            .stroke(isCurrentMonth ? Color.blue : Color.gray.opacity(0.3), lineWidth: isCurrentMonth ? 1.5 : 1.0)
-    }
-    
-
-    
-    // MARK: - Bottom Info Section (Same as ContentView, larger)
-    private var bottomInfoSection: some View {
-        VStack(spacing: 10) {
-            // Empty space for visual balance
-        }
-        .padding(.bottom, 12)
-    }
-    
-    // MARK: - Background Gradient (Same as ContentView)
-    private var backgroundGradient: some View {
-        LinearGradient(
-            colors: [Color(.systemBackground), Color(.systemGray6)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-    
-    // MARK: - Day Gradient (Same as ContentView)
-    private var dayGradient: LinearGradient {
-        LinearGradient(
-            colors: [.blue, .purple],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-    
-    // MARK: - Calendar Columns (Same as ContentView)
-    private var calendarColumns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
-    }
-    
 }
 
-
-
-
-
+// MARK: - Previews
 #Preview(as: .systemSmall) {
-    WidgetExtension()
+    LockScreenCalendarWidget()
 } timeline: {
     SimpleEntry(
         date: Date(),
@@ -600,7 +419,7 @@ struct LargeContentView: View {
 }
 
 #Preview(as: .systemMedium) {
-    WidgetExtension()
+    LockScreenCalendarWidget()
 } timeline: {
     SimpleEntry(
         date: Date(),
@@ -656,71 +475,3 @@ struct LargeContentView: View {
         initialTime: Date()
     )
 }
-
-#Preview(as: .systemLarge) {
-    WidgetExtension()
-} timeline: {
-    SimpleEntry(
-        date: Date(),
-        selectedDate: Date(),
-        currentMonth: "August",
-        currentDayName: "Monday",
-        currentTime: "14:30",
-        allCalendarDays: [
-            // Previous month days (faded)
-            CalendarDay(day: 28, isCurrentMonth: false, monthType: .previous),
-            CalendarDay(day: 29, isCurrentMonth: false, monthType: .previous),
-            CalendarDay(day: 30, isCurrentMonth: false, monthType: .previous),
-            CalendarDay(day: 31, isCurrentMonth: false, monthType: .previous),
-            
-            // Current month days
-            CalendarDay(day: 1, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 2, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 3, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 4, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 5, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 6, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 7, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 8, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 9, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 10, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 11, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 12, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 13, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 14, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 15, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 16, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 17, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 18, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 19, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 20, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 21, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 22, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 23, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 24, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 25, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 26, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 27, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 28, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 29, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 30, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 31, isCurrentMonth: true, monthType: .current),
-            
-            // Next month days (faded)
-            CalendarDay(day: 1, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 2, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 3, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 4, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 5, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 6, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 7, isCurrentMonth: false, monthType: .next)
-        ],
-        weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        initialTime: Date()
-    )
-}
-
-
-
-
-
