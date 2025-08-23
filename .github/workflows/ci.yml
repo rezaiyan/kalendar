@@ -57,7 +57,7 @@ jobs:
             -project Kalendar.xcodeproj \
             -scheme ${{ matrix.scheme }} \
             -configuration Debug \
-            -destination "platform=iOS Simulator,name=iPhone 14" \
+            -destination "platform=iOS Simulator,name=iPhone 16" \
             test \
             -only-testing:KalendarTests \
             CODE_SIGNING_ALLOWED=NO \
@@ -91,7 +91,7 @@ jobs:
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
             -configuration Debug \
-            -destination "platform=iOS Simulator,name=iPhone 14" \
+            -destination "platform=iOS Simulator,name=iPhone 16" \
             test \
             -only-testing:WidgetTests \
             CODE_SIGNING_ALLOWED=NO \
@@ -166,7 +166,7 @@ jobs:
           xcodebuild \
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
-            -destination "platform=iOS Simulator,name=iPhone 14" \
+            -destination "platform=iOS Simulator,name=iPhone 16" \
             -configuration Debug \
             test \
             -enableCodeCoverage YES \
@@ -198,7 +198,7 @@ jobs:
           xcodebuild \
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
-            -destination "platform=iOS Simulator,name=iPhone 14" \
+            -destination "platform=iOS Simulator,name=iPhone 16" \
             -configuration Release \
             test \
             -only-testing:KalendarTests/testCalendarGenerationPerformance \

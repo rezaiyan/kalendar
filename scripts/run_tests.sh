@@ -15,8 +15,8 @@ NC='\033[0m' # No Color
 # Default values
 SCHEME="Kalendar"
 PROJECT="Kalendar.xcodeproj"
-DEVICE=""
-IOS_VERSION=""
+DEVICE="iPhone 16"
+IOS_VERSION="18.1"
 TEST_TYPE="all"
 GENERATE_REPORT=false
 VERBOSE=false
@@ -45,8 +45,8 @@ show_usage() {
     echo "Options:"
     echo "  -s, --scheme SCHEME           Xcode scheme to test (default: Kalendar)"
     echo "  -p, --project PROJECT         Xcode project (default: Kalendar.xcodeproj)"
-    echo "  -d, --device DEVICE           Test device (not needed for unit tests)"
-    echo "  -i, --ios-version VERSION     iOS version (not needed for unit tests)"
+    echo "  -d, --device DEVICE           Test device (default: iPhone 16)"
+    echo "  -i, --ios-version VERSION     iOS version (default: 18.1)"
     echo "  -t, --test-type TYPE          Test type: unit|widget|all (default: all)"
     echo "  -r, --report                  Generate test report"
     echo "  -v, --verbose                 Verbose output"
