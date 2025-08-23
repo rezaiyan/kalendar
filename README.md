@@ -7,7 +7,7 @@ A beautiful iOS calendar app with widgets built using SwiftUI and WidgetKit.
 ## 📱 Screenshots & Media
 
 ### 🎥 Video Demo
-[**📺 Watch App Demo Video**](screenshots/app_demo.mov)  
+[**📺 Watch App Demo Video**](screenshots/app_demo.mp4)  
 *Experience the Kalendar app in action - see the smooth transitions between light/dark modes and responsive design*
 
 ### 🌅 Light Mode
