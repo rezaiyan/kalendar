@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>development</string>
+    <key>uploadBitcode</key>
+    <false/>
+    <key>uploadSymbols</key>
+    <true/>
+    <key>compileBitcode</key>
+    <false/>
+    <key>signingStyle</key>
+    <string>automatic</string>
+    <key>stripSwiftSymbols</key>
+    <false/>
+    <key>teamID</key>
+    <string>YOUR_TEAM_ID</string>
+    <key>destination</key>
+    <string>export</string>
+    <key>signingCertificate</key>
+    <string>Apple Development</string>
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.alirezaiyan.Kalendar</key>
+        <string>Kalendar Development</string>
+        <key>com.alirezaiyan.Kalendar.WidgetExtension</key>
+        <string>Kalendar Widget Extension Development</string>
+        <key>com.alirezaiyan.Kalendar.LockScreenCalendarWidget</key>
+        <string>Kalendar Lock Screen Widget Development</string>
+    </dict>
+</dict>
+</plist>
