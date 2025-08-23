@@ -42,15 +42,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-swiftpm-
 
-      - name: Launch iOS Simulator
-        id: sim
-        uses: futureware-tech/simulator-action@v4
-        with:
-          model: 'iPhone 14'    # keep model-only for stability across runner updates
-          os: iOS
-          wait_for_boot: true
-          erase_before_boot: true
-          shutdown_after_job: true
+      - name: List Available Simulators
+        run: |
+          echo "Available simulators:"
+          xcrun simctl list devices available | head -30
+          echo ""
+          echo "iPhone simulators:"
+          xcrun simctl list devices available | grep "iPhone" || echo "No iPhone simulators found"
 
       - name: Test
         run: |
@@ -59,7 +57,7 @@ jobs:
             -project Kalendar.xcodeproj \
             -scheme ${{ matrix.scheme }} \
             -configuration Debug \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -destination "platform=iOS Simulator,name=iPhone 14" \
             test \
             -only-testing:KalendarTests \
             CODE_SIGNING_ALLOWED=NO \
@@ -86,24 +84,16 @@ jobs:
         with:
           xcode-version: '16.1'
 
-      - name: Launch iOS Simulator
-        id: sim
-        uses: futureware-tech/simulator-action@v4
-        with:
-          model: 'iPhone 14'
-          os: iOS
-          wait_for_boot: true
-          erase_before_boot: true
-          shutdown_after_job: true
-
-      - name: Build app (includes widget extensions)
+      - name: Test Widget Logic
         run: |
+          echo "Testing widget logic without building..."
           xcodebuild \
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
             -configuration Debug \
-            build \
+            -destination "platform=iOS Simulator,name=iPhone 14" \
+            test \
+            -only-testing:WidgetTests \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty && exit ${PIPESTATUS[0]}
 
@@ -171,22 +161,12 @@ jobs:
         with:
           xcode-version: '16.1'
 
-      - name: Launch iOS Simulator
-        id: sim
-        uses: futureware-tech/simulator-action@v4
-        with:
-          model: 'iPhone 14'
-          os: iOS
-          wait_for_boot: true
-          erase_before_boot: true
-          shutdown_after_job: true
-
       - name: Test with Coverage
         run: |
           xcodebuild \
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -destination "platform=iOS Simulator,name=iPhone 14" \
             -configuration Debug \
             test \
             -enableCodeCoverage YES \
@@ -213,22 +193,12 @@ jobs:
         with:
           xcode-version: '16.1'
 
-      - name: Launch iOS Simulator
-        id: sim
-        uses: futureware-tech/simulator-action@v4
-        with:
-          model: 'iPhone 14'
-          os: iOS
-          wait_for_boot: true
-          erase_before_boot: true
-          shutdown_after_job: true
-
       - name: Run Performance Tests
         run: |
           xcodebuild \
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -destination "platform=iOS Simulator,name=iPhone 14" \
             -configuration Release \
             test \
             -only-testing:KalendarTests/testCalendarGenerationPerformance \
@@ -258,23 +228,12 @@ jobs:
         with:
           xcode-version: '16.1'
 
-      - name: Launch iOS Simulator
-        id: sim
-        uses: futureware-tech/simulator-action@v4
-        with:
-          model: 'iPhone 14'
-          os: iOS
-          wait_for_boot: true
-          erase_before_boot: true
-          shutdown_after_job: true
-
       - name: Build Release (archive)
         run: |
           xcodebuild \
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
             -configuration Release \
-            -destination "id=${{ steps.sim.outputs.udid }}" \
             -archivePath ./build/Kalendar.xcarchive \
             archive \
             CODE_SIGNING_ALLOWED=NO \
