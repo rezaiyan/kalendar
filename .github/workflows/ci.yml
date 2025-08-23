@@ -13,7 +13,6 @@ jobs:
   test:
     name: Test
     runs-on: macos-15
-
     strategy:
       matrix:
         scheme: [Kalendar]
@@ -30,8 +29,7 @@ jobs:
       - name: Cache derived data
         uses: actions/cache@v4
         with:
-          path: |
-            ~/Library/Developer/Xcode/DerivedData
+          path: ~/Library/Developer/Xcode/DerivedData
           key: ${{ runner.os }}-derived-data-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-derived-data-
@@ -39,50 +37,20 @@ jobs:
       - name: Cache SwiftPM (global)
         uses: actions/cache@v4
         with:
-          path: |
-            ~/Library/Caches/org.swift.swiftpm
+          path: ~/Library/Caches/org.swift.swiftpm
           key: ${{ runner.os }}-swiftpm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: |
             ${{ runner.os }}-swiftpm-
 
-      - name: Show available destinations
-        run: |
-          xcodebuild -project Kalendar.xcodeproj -scheme ${{ matrix.scheme }} -showdestinations || true
-          xcrun simctl list runtimes
-          xcrun simctl list devices available
-
-      - name: Pick iOS Simulator
-        id: pick-sim
-        shell: bash
-        run: |
-          # Try preferred devices first, then fallback to the first available iPhone
-          PREFERRED=("iPhone 16" "iPhone 15" "iPhone SE (3rd generation)" "iPhone 14" "iPhone 13")
-          for NAME in "${PREFERRED[@]}"; do
-            UDID=$(xcrun simctl list devices available | awk -v n="$NAME" -F '[()]' '$0 ~ n {print $2; exit}')
-            if [ -n "$UDID" ]; then
-              echo "Picked $NAME ($UDID)"
-              echo "udid=$UDID" >> "$GITHUB_OUTPUT"
-              echo "name=$NAME" >> "$GITHUB_OUTPUT"
-              break
-            fi
-          done
-          if [ -z "${UDID:-}" ]; then
-            # Any available iPhone
-            UDID=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')
-            NAME=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $1; sub(/^.*?iPhone/,"iPhone",$1); gsub(/^[[:space:]]+|[[:space:]]+$/,"",$1); print $1; exit}')
-            if [ -z "$UDID" ]; then
-              echo "No available iPhone simulators found" >&2
-              exit 1
-            fi
-            echo "Picked $NAME ($UDID)"
-            echo "udid=$UDID" >> "$GITHUB_OUTPUT"
-            echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Boot simulator
-        run: |
-          xcrun simctl boot "${{ steps.pick-sim.outputs.udid }}" || true
-          xcrun simctl bootstatus "${{ steps.pick-sim.outputs.udid }}" -b -s
+      - name: Launch iOS Simulator
+        id: sim
+        uses: futureware-tech/simulator-action@v4
+        with:
+          model: 'iPhone 14'          # keep it common; you can switch to 'iPhone 16' later
+          os: iOS                     # omit os_version to be flexible across runners
+          erase_before_boot: true
+          wait_for_boot: true
+          shutdown_after_job: true
 
       - name: Test
         run: |
@@ -91,7 +59,7 @@ jobs:
             -project Kalendar.xcodeproj \
             -scheme ${{ matrix.scheme }} \
             -configuration Debug \
-            -destination "id=${{ steps.pick-sim.outputs.udid }}" \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
             test \
             -only-testing:KalendarTests \
             CODE_SIGNING_ALLOWED=NO \
@@ -118,28 +86,22 @@ jobs:
         with:
           xcode-version: '16.1'
 
-      - name: Pick iOS Simulator
-        id: pick-sim
-        shell: bash
-        run: |
-          UDID=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')
-          if [ -z "$UDID" ]; then
-            echo "No available iPhone simulators found" >&2
-            exit 1
-          fi
-          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
-
-      - name: Boot simulator
-        run: |
-          xcrun simctl boot "${{ steps.pick-sim.outputs.udid }}" || true
-          xcrun simctl bootstatus "${{ steps.pick-sim.outputs.udid }}" -b -s
+      - name: Launch iOS Simulator
+        id: sim
+        uses: futureware-tech/simulator-action@v4
+        with:
+          model: 'iPhone 14'
+          os: iOS
+          erase_before_boot: true
+          wait_for_boot: true
+          shutdown_after_job: true
 
       - name: Build app (includes widget extensions)
         run: |
           xcodebuild \
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
-            -destination "id=${{ steps.pick-sim.outputs.udid }}" \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
             -configuration Debug \
             build \
             CODE_SIGNING_ALLOWED=NO \
@@ -184,7 +146,6 @@ jobs:
 
       - name: Run security scan
         run: |
-          # Check for hardcoded secrets
           if grep -r "password\|secret\|key\|token" --include="*.swift" --include="*.m" --include="*.h" . | grep -v "// Test" | grep -v "placeholder"; then
             echo "❌ Potential hardcoded secrets found"
             exit 1
@@ -210,13 +171,117 @@ jobs:
         with:
           xcode-version: '16.1'
 
-      - name: Pick iOS Simulator
-        id: pick-sim
-        shell: bash
+      - name: Launch iOS Simulator
+        id: sim
+        uses: futureware-tech/simulator-action@v4
+        with:
+          model: 'iPhone 14'
+          os: iOS
+          erase_before_boot: true
+          wait_for_boot: true
+          shutdown_after_job: true
+
+      - name: Test with Coverage
         run: |
-          UDID=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')
-          if [ -z "$UDID" ]; then
-            echo "No available iPhone simulators found" >&2
-            exit 1
-          fi
-          echo
+          xcodebuild \
+            -project Kalendar.xcodeproj \
+            -scheme Kalendar \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -configuration Debug \
+            test \
+            -enableCodeCoverage YES \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty && exit ${PIPESTATUS[0]}
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ~/Library/Developer/Xcode/DerivedData/**/Logs/Test/*.xcresult
+          fail_ci_if_error: false
+
+  performance:
+    name: Performance Tests
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.1'
+
+      - name: Launch iOS Simulator
+        id: sim
+        uses: futureware-tech/simulator-action@v4
+        with:
+          model: 'iPhone 14'
+          os: iOS
+          erase_before_boot: true
+          wait_for_boot: true
+          shutdown_after_job: true
+
+      - name: Run Performance Tests
+        run: |
+          xcodebuild \
+            -project Kalendar.xcodeproj \
+            -scheme Kalendar \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -configuration Release \
+            test \
+            -only-testing:KalendarTests/testCalendarGenerationPerformance \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty && exit ${PIPESTATUS[0]}
+
+      - name: Upload Performance Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-results
+          path: |
+            ~/Library/Developer/Xcode/DerivedData/**/Logs/Test/*.xcresult
+
+  build-release:
+    name: Build Release
+    runs-on: macos-15
+    if: github.ref == 'refs/heads/main'
+    needs: [test, widget-test, lint, security]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.1'
+
+      - name: Launch iOS Simulator
+        id: sim
+        uses: futureware-tech/simulator-action@v4
+        with:
+          model: 'iPhone 14'
+          os: iOS
+          erase_before_boot: true
+          wait_for_boot: true
+          shutdown_after_job: true
+
+      - name: Build Release (archive)
+        run: |
+          xcodebuild \
+            -project Kalendar.xcodeproj \
+            -scheme Kalendar \
+            -configuration Release \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -archivePath ./build/Kalendar.xcarchive \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty && exit ${PIPESTATUS[0]}
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-build
+          path: ./build/
