@@ -309,7 +309,7 @@ export_archive() {
 <plist version="1.0">
 <dict>
     <key>method</key>
-    <string>app-store</string>
+    <string>app-store-connect</string>
     <key>uploadBitcode</key>
     <false/>
     <key>uploadSymbols</key>

@@ -348,7 +348,7 @@ struct LockScreenMediumView: View {
             VStack(spacing: 6) {
                 // Weekday headers (very compact)
                 HStack(spacing: 0) {
-                    ForEach(["M", "T", "W", "T", "F", "S", "S"], id: \.self) { day in
+                    ForEach(Array(["M", "T", "W", "T", "F", "S", "S"].enumerated()), id: \.offset) { index, day in
                         Text(day)
                             .font(.system(size: 8, weight: .semibold, design: .rounded))
                             .foregroundColor(.secondary)

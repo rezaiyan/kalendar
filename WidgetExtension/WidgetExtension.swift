@@ -333,7 +333,7 @@ struct SmallContentView: View {
         VStack(spacing: 4) {
             // Weekday headers (abbreviated)
             HStack(spacing: 0) {
-                ForEach(["M", "T", "W", "T", "F", "S", "S"], id: \.self) { day in
+                ForEach(Array(["M", "T", "W", "T", "F", "S", "S"].enumerated()), id: \.offset) { index, day in
                     Text(day)
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
                         .foregroundColor(.secondary)
@@ -406,7 +406,7 @@ struct MediumContentView: View {
             VStack(spacing: 8) {
                 // Weekday headers
                 HStack(spacing: 0) {
-                    ForEach(["M", "T", "W", "T", "F", "S", "S"], id: \.self) { day in
+                    ForEach(Array(["M", "T", "W", "T", "F", "S", "S"].enumerated()), id: \.offset) { index, day in
                         Text(day)
                             .font(.system(size: 11, weight: .semibold, design: .rounded))
                             .foregroundColor(.secondary)
