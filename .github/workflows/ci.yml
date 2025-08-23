@@ -13,230 +13,235 @@ jobs:
   test:
     name: Test
     runs-on: macos-15
-    
+
     strategy:
       matrix:
         scheme: [Kalendar]
-    
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Setup Xcode
-      uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: '16.1'
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.1'
 
-    - name: Cache derived data
-      uses: actions/cache@v4
-      with:
-        path: ~/Library/Developer/Xcode/DerivedData
-        key: ${{ runner.os }}-derived-data-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-derived-data-
+      - name: Cache derived data
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-derived-data-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-derived-data-
 
-    - name: Cache SPM dependencies
-      uses: actions/cache@v4
-      with:
-        path: .build
-        key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-        restore-keys: |
-          ${{ runner.os }}-spm-
+      - name: Cache SwiftPM (global)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftpm-
 
-    - name: Test
-      run: |
-        echo "Running unit tests only (no build required)..."
-        xcodebuild \
-          -project Kalendar.xcodeproj \
-          -scheme ${{ matrix.scheme }} \
-          -configuration Debug \
-          -destination "platform=iOS Simulator,name=iPhone SE (3rd generation),OS=18.2" \
-          test \
-          -only-testing:KalendarTests \
-          CODE_SIGNING_ALLOWED=NO \
-          | xcpretty && exit ${PIPESTATUS[0]}
+      - name: Show available simulators
+        run: |
+          xcrun simctl list devicetypes
+          xcrun simctl list runtimes
+          xcodebuild -project Kalendar.xcodeproj -scheme ${{ matrix.scheme }} -showdestinations
 
-    - name: Upload test results
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: test-results-${{ matrix.destination }}
-        path: |
-          ~/Library/Developer/Xcode/DerivedData/**/Logs/Test/*.xcresult
+      - name: Test
+        run: |
+          echo "Running unit tests only (no build required)..."
+          xcodebuild \
+            -project Kalendar.xcodeproj \
+            -scheme ${{ matrix.scheme }} \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,OS=latest,name=iPhone 16" \
+            test \
+            -only-testing:KalendarTests \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty && exit ${PIPESTATUS[0]}
 
-
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-${{ matrix.scheme }}
+          path: |
+            ~/Library/Developer/Xcode/DerivedData/**/Logs/Test/*.xcresult
 
   widget-test:
     name: Widget Tests
     runs-on: macos-15
-    
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Setup Xcode
-      uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: '16.1'
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.1'
 
-    - name: Test Widget Extensions
-      run: |
-        # Test main app which includes widget extensions
-        xcodebuild \
-          -project Kalendar.xcodeproj \
-          -scheme Kalendar \
-          -destination "platform=iOS Simulator,name=iPhone 16" \
-          -configuration Debug \
-          build \
-          CODE_SIGNING_ALLOWED=NO \
-          | xcpretty && exit ${PIPESTATUS[0]}
+      - name: Build app (includes widget extensions)
+        run: |
+          xcodebuild \
+            -project Kalendar.xcodeproj \
+            -scheme Kalendar \
+            -destination "platform=iOS Simulator,OS=latest,name=iPhone 16" \
+            -configuration Debug \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty && exit ${PIPESTATUS[0]}
 
   lint:
     name: Lint
     runs-on: macos-15
-    
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Setup Xcode
-      uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: '16.1'
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.1'
 
-    - name: Install SwiftLint
-      run: brew install swiftlint
+      - name: Install SwiftLint
+        run: brew install swiftlint
 
-    - name: Run SwiftLint
-      run: swiftlint lint --reporter github-actions-logging
+      - name: Run SwiftLint
+        run: swiftlint lint --reporter github-actions-logging
 
-    - name: Analyze Code
-      run: |
-        xcodebuild \
-          -project Kalendar.xcodeproj \
-          -scheme Kalendar \
-          -destination "platform=iOS Simulator,name=iPhone 16" \
-          -configuration Debug \
-          analyze \
-          CODE_SIGNING_ALLOWED=NO \
-          | xcpretty && exit ${PIPESTATUS[0]}
+      - name: Analyze Code
+        run: |
+          xcodebuild \
+            -project Kalendar.xcodeproj \
+            -scheme Kalendar \
+            -destination "platform=iOS Simulator,OS=latest,name=iPhone 16" \
+            -configuration Debug \
+            analyze \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty && exit ${PIPESTATUS[0]}
 
   security:
     name: Security Scan
     runs-on: macos-15
-    
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Run security scan
-      run: |
-        # Check for hardcoded secrets
-        if grep -r "password\|secret\|key\|token" --include="*.swift" --include="*.m" --include="*.h" . | grep -v "// Test" | grep -v "placeholder"; then
-          echo "❌ Potential hardcoded secrets found"
-          exit 1
-        else
-          echo "✅ No hardcoded secrets found"
-        fi
+      - name: Run security scan
+        run: |
+          # Check for hardcoded secrets
+          if grep -r "password\|secret\|key\|token" --include="*.swift" --include="*.m" --include="*.h" . | grep -v "// Test" | grep -v "placeholder"; then
+            echo "❌ Potential hardcoded secrets found"
+            exit 1
+          else
+            echo "✅ No hardcoded secrets found"
+          fi
 
-    - name: Check Info.plist files
-      run: |
-        find . -name "Info.plist" -exec plutil -lint {} \;
+      - name: Check Info.plist files
+        run: |
+          find . -name "Info.plist" -exec plutil -lint {} \;
 
   coverage:
     name: Code Coverage
     runs-on: macos-15
     needs: test
-    
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Setup Xcode
-      uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: '16.1'
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.1'
 
-    - name: Generate Code Coverage
-      run: |
-        xcodebuild \
-          -project Kalendar.xcodeproj \
-          -scheme Kalendar \
-          -destination "platform=iOS Simulator,name=iPhone 16" \
-          -configuration Debug \
-          test \
-          -enableCodeCoverage YES \
-          CODE_SIGNING_ALLOWED=NO \
-          | xcpretty && exit ${PIPESTATUS[0]}
+      - name: Test with Coverage
+        run: |
+          xcodebuild \
+            -project Kalendar.xcodeproj \
+            -scheme Kalendar \
+            -destination "platform=iOS Simulator,OS=latest,name=iPhone 16" \
+            -configuration Debug \
+            test \
+            -enableCodeCoverage YES \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty && exit ${PIPESTATUS[0]}
 
-    - name: Upload Coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./DerivedData/Kalendar/Logs/Test/*.xcresult
-        fail_ci_if_error: false
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ~/Library/Developer/Xcode/DerivedData/**/Logs/Test/*.xcresult
+          fail_ci_if_error: false
 
   performance:
     name: Performance Tests
     runs-on: macos-15
-    
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Setup Xcode
-      uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: '16.1'
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.1'
 
-    - name: Run Performance Tests
-      run: |
-        xcodebuild \
-          -project Kalendar.xcodeproj \
-          -scheme Kalendar \
-          -destination "platform=iOS Simulator,name=iPhone 16" \
-          -configuration Release \
-          test \
-          -only-testing:KalendarTests/testCalendarGenerationPerformance \
-          CODE_SIGNING_ALLOWED=NO \
-          | xcpretty && exit ${PIPESTATUS[0]}
+      - name: Run Performance Tests
+        run: |
+          xcodebuild \
+            -project Kalendar.xcodeproj \
+            -scheme Kalendar \
+            -destination "platform=iOS Simulator,OS=latest,name=iPhone 16" \
+            -configuration Release \
+            test \
+            -only-testing:KalendarTests/testCalendarGenerationPerformance \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty && exit ${PIPESTATUS[0]}
 
-    - name: Upload Performance Results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: performance-results
-        path: |
-          ~/Library/Developer/Xcode/DerivedData/**/Logs/Test/*.xcresult
+      - name: Upload Performance Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-results
+          path: |
+            ~/Library/Developer/Xcode/DerivedData/**/Logs/Test/*.xcresult
 
   build-release:
     name: Build Release
     runs-on: macos-15
     if: github.ref == 'refs/heads/main'
     needs: [test, widget-test, lint, security]
-    
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Setup Xcode
-      uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: '16.1'
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.1'
 
-    - name: Build Release
-      run: |
-        xcodebuild \
-          -project Kalendar.xcodeproj \
-          -scheme Kalendar \
-          -configuration Release \
-          -archivePath ./build/Kalendar.xcarchive \
-          archive \
-          CODE_SIGNING_ALLOWED=NO \
-          | xcpretty && exit ${PIPESTATUS[0]}
+      - name: Build Release
+        run: |
+          xcodebuild \
+            -project Kalendar.xcodeproj \
+            -scheme Kalendar \
+            -configuration Release \
+            -archivePath ./build/Kalendar.xcarchive \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty && exit ${PIPESTATUS[0]}
 
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-build
-        path: ./build/
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-build
+          path: ./build/
