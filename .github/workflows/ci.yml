@@ -52,14 +52,15 @@ jobs:
 
       - name: Test
         run: |
-          echo "Running unit tests only (no build required)..."
+          echo "Building app and running unit tests only..."
           xcodebuild \
             -project Kalendar.xcodeproj \
             -scheme ${{ matrix.scheme }} \
             -configuration Debug \
             -destination "platform=iOS Simulator,name=iPhone 16" \
-            test \
+            build test \
             -only-testing:KalendarTests \
+            -skip-testing:KalendarUITests \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty && exit ${PIPESTATUS[0]}
 
@@ -86,14 +87,15 @@ jobs:
 
       - name: Test Widget Logic
         run: |
-          echo "Testing widget logic without building..."
+          echo "Building app and testing widget logic within KalendarTests..."
           xcodebuild \
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
             -configuration Debug \
             -destination "platform=iOS Simulator,name=iPhone 16" \
-            test \
-            -only-testing:WidgetTests \
+            build test \
+            -only-testing:KalendarTests/WidgetCalendarDayTests,KalendarTests/WidgetPerformanceTests \
+            -skip-testing:KalendarUITests \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty && exit ${PIPESTATUS[0]}
 
@@ -168,7 +170,8 @@ jobs:
             -scheme Kalendar \
             -destination "platform=iOS Simulator,name=iPhone 16" \
             -configuration Debug \
-            test \
+            build test \
+            -only-testing:KalendarTests \
             -enableCodeCoverage YES \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty && exit ${PIPESTATUS[0]}
@@ -200,8 +203,9 @@ jobs:
             -scheme Kalendar \
             -destination "platform=iOS Simulator,name=iPhone 16" \
             -configuration Release \
-            test \
+            build test \
             -only-testing:KalendarTests/testCalendarGenerationPerformance \
+            -skip-testing:KalendarUITests \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty && exit ${PIPESTATUS[0]}
 

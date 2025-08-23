@@ -10,8 +10,6 @@ xcuserdata/
 *.xccheckout
 
 ## compatibility with Xcode 3 and earlier (ignoring not required starting Xcode 4)
-build/
-DerivedData/
 *.moved-aside
 *.pbxuser
 !default.pbxuser
@@ -98,6 +96,9 @@ DerivedData/
 *.ipa
 ExportOptions.plist
 release_notes_*.md
+
+# Project backup files
+*.pbxproj.backup.*
 
 # macOS
 .DS_Store

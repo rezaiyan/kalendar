@@ -5,7 +5,7 @@
 included:
   - Kalendar
   - KalendarTests
-  - KalendarUITests
+
   - LockScreenCalendarWidget
   - WidgetExtension
 

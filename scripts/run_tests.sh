@@ -142,7 +142,7 @@ run_xcodebuild() {
         -project $PROJECT \
         -scheme $SCHEME \
         -configuration Debug \
-        $build_action \
+        build $build_action \
         $extra_args \
         CODE_SIGNING_ALLOWED=NO"
     
@@ -185,7 +185,7 @@ run_widget_tests() {
     fi
     
     # Test widget timeline logic
-    if run_xcodebuild "WidgetTests" "test" "-only-testing:WidgetTests $extra_args"; then
+    if run_xcodebuild "KalendarTests" "test" "-only-testing:KalendarTests/WidgetCalendarDayTests,KalendarTests/WidgetPerformanceTests $extra_args"; then
         print_success "Widget tests passed"
     else
         print_error "Widget tests failed"
