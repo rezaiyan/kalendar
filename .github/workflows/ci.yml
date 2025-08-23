@@ -45,11 +45,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-swiftpm-
 
-      - name: Show available simulators
+      - name: List Available Simulators
         run: |
-          xcrun simctl list devicetypes
-          xcrun simctl list runtimes
-          xcodebuild -project Kalendar.xcodeproj -scheme ${{ matrix.scheme }} -showdestinations
+          echo "Available simulators:"
+          xcrun simctl list devices available | grep "iPhone SE" || echo "No iPhone SE simulators found"
+          echo ""
+          echo "All available simulators:"
+          xcrun simctl list devices available | head -20
 
       - name: Test
         run: |
@@ -58,7 +60,7 @@ jobs:
             -project Kalendar.xcodeproj \
             -scheme ${{ matrix.scheme }} \
             -configuration Debug \
-            -destination "platform=iOS Simulator,OS=latest,name=iPhone 16" \
+            -destination "platform=iOS Simulator,name=iPhone SE (3rd generation)" \
             test \
             -only-testing:KalendarTests \
             CODE_SIGNING_ALLOWED=NO \
@@ -85,14 +87,16 @@ jobs:
         with:
           xcode-version: '16.1'
 
-      - name: Build app (includes widget extensions)
+      - name: Test Widget Logic
         run: |
+          echo "Testing widget logic without building..."
           xcodebuild \
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
-            -destination "platform=iOS Simulator,OS=latest,name=iPhone 16" \
             -configuration Debug \
-            build \
+            -destination "platform=iOS Simulator,name=iPhone SE (3rd generation)" \
+            test \
+            -only-testing:WidgetTests \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty && exit ${PIPESTATUS[0]}
 
@@ -167,7 +171,7 @@ jobs:
           xcodebuild \
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
-            -destination "platform=iOS Simulator,OS=latest,name=iPhone 16" \
+            -destination "platform=iOS Simulator,name=iPhone SE (3rd generation)" \
             -configuration Debug \
             test \
             -enableCodeCoverage YES \
@@ -199,7 +203,7 @@ jobs:
           xcodebuild \
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
-            -destination "platform=iOS Simulator,OS=latest,name=iPhone 16" \
+            -destination "platform=iOS Simulator,name=iPhone SE (3rd generation)" \
             -configuration Release \
             test \
             -only-testing:KalendarTests/testCalendarGenerationPerformance \
