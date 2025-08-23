@@ -1,0 +1,89 @@
+{
+  "configurations" : [
+    {
+      "id" : "B8B5D6F1-1234-5678-9ABC-DEF012345678",
+      "name" : "Configuration 1",
+      "options" : {
+        "addressSanitizer" : {
+          "enabled" : false
+        },
+        "codeCoverage" : {
+          "enabled" : true,
+          "targets" : [
+            {
+              "containerPath" : "container:Kalendar.xcodeproj",
+              "identifier" : "KALENDAR_TARGET_ID",
+              "name" : "Kalendar"
+            }
+          ]
+        },
+        "commandLineArgumentEntries" : [
+          {
+            "argument" : "-com.apple.CoreData.ConcurrencyDebug 1"
+          },
+          {
+            "argument" : "-com.apple.CoreData.SQLDebug 1"
+          }
+        ],
+        "environmentVariableEntries" : [
+          {
+            "key" : "OS_ACTIVITY_MODE",
+            "value" : "disable"
+          },
+          {
+            "key" : "SQLITE_ENABLE_THREAD_ASSERTIONS",
+            "value" : "1"
+          }
+        ],
+        "language" : "en",
+        "mainThreadCheckerEnabled" : true,
+        "performanceMetricsEnabled" : true,
+        "preferredScreenCaptureFormat" : "screenshot",
+        "region" : "US",
+        "sanitizerEnabled" : false,
+        "targetForVariableExpansion" : {
+          "containerPath" : "container:Kalendar.xcodeproj",
+          "identifier" : "KALENDAR_TARGET_ID",
+          "name" : "Kalendar"
+        },
+        "testExecutionOrdering" : "random",
+        "testTimeoutsEnabled" : true,
+        "threadSanitizerEnabled" : false,
+        "undefinedBehaviorSanitizerEnabled" : false
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : {
+      "enabled" : true,
+      "targets" : [
+        {
+          "containerPath" : "container:Kalendar.xcodeproj",
+          "identifier" : "KALENDAR_TARGET_ID",
+          "name" : "Kalendar"
+        }
+      ]
+    },
+    "performanceMetricsEnabled" : true,
+    "testExecutionOrdering" : "random"
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:Kalendar.xcodeproj",
+        "identifier" : "KALENDAR_TESTS_TARGET_ID",
+        "name" : "KalendarTests"
+      }
+    },
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Kalendar.xcodeproj",
+        "identifier" : "KALENDAR_UI_TESTS_TARGET_ID",
+        "name" : "KalendarUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

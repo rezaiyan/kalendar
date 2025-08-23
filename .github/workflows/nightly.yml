@@ -1,0 +1,377 @@
+name: Nightly Build
+
+on:
+  schedule:
+    # Run every night at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allow manual triggering
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_15.4.app/Contents/Developer
+
+jobs:
+  comprehensive-test:
+    name: Comprehensive Testing
+    runs-on: macos-14
+    
+    strategy:
+      matrix:
+        xcode-version: ['15.4', '15.3']
+        ios-version: ['17.5', '17.4', '17.2']
+        device: 
+          - 'iPhone 15'
+          - 'iPhone 15 Plus'
+          - 'iPhone 15 Pro'
+          - 'iPhone 15 Pro Max'
+          - 'iPhone 14'
+          - 'iPhone 14 Pro'
+          - 'iPhone SE (3rd generation)'
+          - 'iPad Pro (12.9-inch) (6th generation)'
+          - 'iPad Pro (11-inch) (4th generation)'
+          - 'iPad Air (5th generation)'
+          - 'iPad (10th generation)'
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: ${{ matrix.xcode-version }}
+
+    - name: List Available Runtimes
+      run: xcrun simctl list runtimes
+
+    - name: Install iOS Runtime
+      run: |
+        # Check if runtime is available
+        if ! xcrun simctl list runtimes | grep -q "iOS ${{ matrix.ios-version }}"; then
+          echo "iOS ${{ matrix.ios-version }} runtime not available, skipping"
+          exit 0
+        fi
+
+    - name: Create Simulator
+      run: |
+        DEVICE_TYPE="${{ matrix.device }}"
+        IOS_VERSION="${{ matrix.ios-version }}"
+        
+        # Check if device type exists
+        if ! xcrun simctl list devicetypes | grep -q "$DEVICE_TYPE"; then
+          echo "Device type $DEVICE_TYPE not available"
+          exit 0
+        fi
+        
+        # Create and boot simulator
+        DEVICE_ID=$(xcrun simctl create "Test-Device" "$DEVICE_TYPE" "iOS$IOS_VERSION" 2>/dev/null || echo "failed")
+        
+        if [ "$DEVICE_ID" = "failed" ]; then
+          echo "Failed to create simulator for $DEVICE_TYPE with iOS $IOS_VERSION"
+          exit 0
+        fi
+        
+        xcrun simctl boot $DEVICE_ID
+        echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
+
+    - name: Run Full Test Suite
+      if: env.DEVICE_ID
+      run: |
+        xcodebuild \
+          -project Kalendar.xcodeproj \
+          -scheme Kalendar \
+          -destination "id=${{ env.DEVICE_ID }}" \
+          -configuration Debug \
+          test \
+          -enableCodeCoverage YES \
+          CODE_SIGNING_ALLOWED=NO \
+          | xcpretty && exit ${PIPESTATUS[0]}
+
+    - name: Run Widget Tests
+      if: env.DEVICE_ID
+      run: |
+        # Test widget extensions
+        xcodebuild \
+          -project Kalendar.xcodeproj \
+          -scheme LockScreenCalendarWidgetExtension \
+          -destination "id=${{ env.DEVICE_ID }}" \
+          -configuration Debug \
+          build \
+          CODE_SIGNING_ALLOWED=NO || true
+          
+        xcodebuild \
+          -project Kalendar.xcodeproj \
+          -scheme KalendarWidgetExtensionExtension \
+          -destination "id=${{ env.DEVICE_ID }}" \
+          -configuration Debug \
+          build \
+          CODE_SIGNING_ALLOWED=NO || true
+
+    - name: Cleanup Simulator
+      if: always() && env.DEVICE_ID
+      run: |
+        xcrun simctl delete ${{ env.DEVICE_ID }} || true
+
+  stress-test:
+    name: Stress Testing
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '15.4'
+
+    - name: Memory Stress Test
+      run: |
+        # Run tests with memory pressure
+        xcodebuild \
+          -project Kalendar.xcodeproj \
+          -scheme Kalendar \
+          -destination "platform=iOS Simulator,name=iPhone 15,OS=17.5" \
+          -configuration Debug \
+          test \
+          -only-testing:KalendarUITests/testLaunchWithLowMemory \
+          CODE_SIGNING_ALLOWED=NO \
+          | xcpretty && exit ${PIPESTATUS[0]}
+
+    - name: Performance Benchmark
+      run: |
+        # Run performance tests multiple times
+        for i in {1..5}; do
+          echo "Performance test run $i"
+          xcodebuild \
+            -project Kalendar.xcodeproj \
+            -scheme Kalendar \
+            -destination "platform=iOS Simulator,name=iPhone 15,OS=17.5" \
+            -configuration Release \
+            test \
+            -only-testing:KalendarTests/testCalendarGenerationPerformance \
+            -only-testing:WidgetTests/testCalendarGenerationPerformance \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty || true
+        done
+
+  security-audit:
+    name: Security Audit
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Deep Security Scan
+      run: |
+        # Check for common security issues
+        echo "🔍 Scanning for security vulnerabilities..."
+        
+        # Check for hardcoded credentials
+        if find . -name "*.swift" -exec grep -l "password\|secret\|key\|token\|credential" {} \; | grep -v Test; then
+          echo "⚠️  Potential hardcoded credentials found"
+        fi
+        
+        # Check for insecure network calls
+        if find . -name "*.swift" -exec grep -l "http://" {} \; | grep -v Test; then
+          echo "⚠️  Insecure HTTP calls found"
+        fi
+        
+        # Check for weak crypto
+        if find . -name "*.swift" -exec grep -l "MD5\|SHA1" {} \; | grep -v Test; then
+          echo "⚠️  Weak cryptographic algorithms found"
+        fi
+        
+        # Check for dangerous functions
+        if find . -name "*.swift" -exec grep -l "eval\|exec\|system" {} \; | grep -v Test; then
+          echo "⚠️  Dangerous functions found"
+        fi
+
+    - name: Check Dependencies
+      run: |
+        # Audit package dependencies (if using SPM)
+        if [ -f "Package.swift" ]; then
+          swift package show-dependencies
+        fi
+
+  compatibility-test:
+    name: Compatibility Testing
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '15.4'
+
+    - name: Test Dark Mode
+      run: |
+        # Test in dark mode
+        xcodebuild \
+          -project Kalendar.xcodeproj \
+          -scheme Kalendar \
+          -destination "platform=iOS Simulator,name=iPhone 15,OS=17.5" \
+          -configuration Debug \
+          test \
+          -only-testing:KalendarUITestsLaunchTests/testLaunchInDarkMode \
+          CODE_SIGNING_ALLOWED=NO \
+          | xcpretty && exit ${PIPESTATUS[0]}
+
+    - name: Test Accessibility
+      run: |
+        # Test accessibility features
+        xcodebuild \
+          -project Kalendar.xcodeproj \
+          -scheme Kalendar \
+          -destination "platform=iOS Simulator,name=iPhone 15,OS=17.5" \
+          -configuration Debug \
+          test \
+          -only-testing:KalendarUITests/testAccessibilityElements \
+          -only-testing:KalendarUITestsLaunchTests/testLaunchAccessibility \
+          CODE_SIGNING_ALLOWED=NO \
+          | xcpretty && exit ${PIPESTATUS[0]}
+
+    - name: Test Different Orientations
+      run: |
+        # Test landscape and portrait orientations
+        xcodebuild \
+          -project Kalendar.xcodeproj \
+          -scheme Kalendar \
+          -destination "platform=iOS Simulator,name=iPhone 15,OS=17.5" \
+          -configuration Debug \
+          test \
+          -only-testing:KalendarUITestsLaunchTests/testLaunchInDifferentOrientations \
+          -only-testing:KalendarUITests/testIPadLayout \
+          CODE_SIGNING_ALLOWED=NO \
+          | xcpretty && exit ${PIPESTATUS[0]}
+
+  widget-validation:
+    name: Widget Validation
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '15.4'
+
+    - name: Validate Widget Timeline
+      run: |
+        # Test widget timeline generation
+        xcodebuild \
+          -project Kalendar.xcodeproj \
+          -scheme Kalendar \
+          -destination "platform=iOS Simulator,name=iPhone 15,OS=17.5" \
+          -configuration Debug \
+          test \
+          -only-testing:WidgetTimelineTests \
+          CODE_SIGNING_ALLOWED=NO \
+          | xcpretty && exit ${PIPESTATUS[0]}
+
+    - name: Test Widget Refresh Logic
+      run: |
+        # Test midnight refresh calculations
+        xcodebuild \
+          -project Kalendar.xcodeproj \
+          -scheme Kalendar \
+          -destination "platform=iOS Simulator,name=iPhone 15,OS=17.5" \
+          -configuration Debug \
+          test \
+          -only-testing:WidgetTests/testMidnightCalculation \
+          -only-testing:WidgetTests/testRefreshTimeCalculation \
+          CODE_SIGNING_ALLOWED=NO \
+          | xcpretty && exit ${PIPESTATUS[0]}
+
+    - name: Validate Widget Builds
+      run: |
+        # Ensure all widget targets build successfully
+        schemes=("LockScreenCalendarWidgetExtension" "KalendarWidgetExtensionExtension")
+        for scheme in "${schemes[@]}"; do
+          echo "Building $scheme..."
+          xcodebuild \
+            -project Kalendar.xcodeproj \
+            -scheme "$scheme" \
+            -destination "platform=iOS Simulator,name=iPhone 15,OS=17.5" \
+            -configuration Release \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty && exit ${PIPESTATUS[0]}
+        done
+
+  report:
+    name: Generate Report
+    runs-on: macos-14
+    needs: [comprehensive-test, stress-test, security-audit, compatibility-test, widget-validation]
+    if: always()
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Generate Report
+      run: |
+        echo "# Nightly Build Report - $(date)" > nightly_report.md
+        echo "" >> nightly_report.md
+        echo "## Test Results" >> nightly_report.md
+        
+        if [ "${{ needs.comprehensive-test.result }}" = "success" ]; then
+          echo "✅ Comprehensive Test: PASSED" >> nightly_report.md
+        else
+          echo "❌ Comprehensive Test: FAILED" >> nightly_report.md
+        fi
+        
+        if [ "${{ needs.stress-test.result }}" = "success" ]; then
+          echo "✅ Stress Test: PASSED" >> nightly_report.md
+        else
+          echo "❌ Stress Test: FAILED" >> nightly_report.md
+        fi
+        
+        if [ "${{ needs.security-audit.result }}" = "success" ]; then
+          echo "✅ Security Audit: PASSED" >> nightly_report.md
+        else
+          echo "❌ Security Audit: FAILED" >> nightly_report.md
+        fi
+        
+        if [ "${{ needs.compatibility-test.result }}" = "success" ]; then
+          echo "✅ Compatibility Test: PASSED" >> nightly_report.md
+        else
+          echo "❌ Compatibility Test: FAILED" >> nightly_report.md
+        fi
+        
+        if [ "${{ needs.widget-validation.result }}" = "success" ]; then
+          echo "✅ Widget Validation: PASSED" >> nightly_report.md
+        else
+          echo "❌ Widget Validation: FAILED" >> nightly_report.md
+        fi
+        
+        echo "" >> nightly_report.md
+        echo "## Build Information" >> nightly_report.md
+        echo "- Commit: ${{ github.sha }}" >> nightly_report.md
+        echo "- Branch: ${{ github.ref_name }}" >> nightly_report.md
+        echo "- Workflow: ${{ github.workflow }}" >> nightly_report.md
+        echo "- Date: $(date)" >> nightly_report.md
+        
+        cat nightly_report.md
+
+    - name: Upload Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: nightly-report
+        path: nightly_report.md
+
+    - name: Notify on Failure
+      if: failure()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        channel: '#kalendar-alerts'
+        text: 'Nightly build failed! Please check the logs.'
+        fields: repo,message,commit,author,workflow
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
