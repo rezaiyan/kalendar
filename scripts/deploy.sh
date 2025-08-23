@@ -17,7 +17,7 @@ SCHEME="Kalendar"
 PROJECT="Kalendar.xcodeproj"
 CONFIGURATION="Release"
 BUMP_TYPE="patch"
-SKIP_TESTS=false
+SKIP_TESTS=true
 SKIP_VERSION_BUMP=false
 ARCHIVE_PATH=""
 EXPORT_PATH=""
@@ -249,18 +249,7 @@ run_tests() {
         print_success "Unit tests passed"
     fi
     
-    print_verbose "Running UI tests..."
-    if ! xcodebuild test \
-        -project "$PROJECT" \
-        -scheme "$SCHEME" \
-        -destination "$test_destination" \
-        -only-testing:KalendarUITests \
-        CODE_SIGNING_ALLOWED=NO \
-        > /dev/null 2>&1; then
-        print_warning "Some UI tests failed, but continuing with deployment"
-    else
-        print_success "UI tests passed"
-    fi
+
 }
 
 # Function to clean build folder

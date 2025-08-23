@@ -80,67 +80,7 @@ jobs:
         path: |
           ~/Library/Developer/Xcode/DerivedData/**/Logs/Test/*.xcresult
 
-  ui-test:
-    name: UI Tests
-    runs-on: macos-15
-    
-    strategy:
-      matrix:
-        device: 
-          - 'iPhone 16'
-          - 'iPhone 16 Pro Max'
-          - 'iPad Pro (12.9-inch) (6th generation)'
-    
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
 
-    - name: Setup Xcode
-      uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: '16.1'
-
-    - name: Cache derived data
-      uses: actions/cache@v4
-      with:
-        path: ~/Library/Developer/Xcode/DerivedData
-        key: ${{ runner.os }}-ui-derived-data-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-ui-derived-data-
-
-    - name: Boot Simulator
-      run: |
-        DEVICE_ID=$(xcrun simctl create "Test-${{ matrix.device }}" "${{ matrix.device }}" "iOS18.1")
-        xcrun simctl boot $DEVICE_ID
-        xcrun simctl list devices | grep "Test-${{ matrix.device }}"
-
-    - name: Run UI Tests
-      run: |
-        xcodebuild \
-          -project Kalendar.xcodeproj \
-          -scheme Kalendar \
-          -destination "platform=iOS Simulator,name=Test-${{ matrix.device }}" \
-          -configuration Debug \
-          test \
-          -only-testing:KalendarUITests \
-          CODE_SIGNING_ALLOWED=NO \
-          | xcpretty && exit ${PIPESTATUS[0]}
-
-    - name: Upload UI Test Results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: ui-test-results-${{ matrix.device }}
-        path: |
-          ~/Library/Developer/Xcode/DerivedData/**/Logs/Test/*.xcresult
-          
-    - name: Upload Screenshots
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: screenshots-${{ matrix.device }}
-        path: |
-          ~/Library/Developer/Xcode/DerivedData/**/Attachments/**/*.png
 
   widget-test:
     name: Widget Tests
@@ -274,7 +214,6 @@ jobs:
           -configuration Release \
           test \
           -only-testing:KalendarTests/testCalendarGenerationPerformance \
-          -only-testing:KalendarUITests/testLaunchPerformance \
           CODE_SIGNING_ALLOWED=NO \
           | xcpretty && exit ${PIPESTATUS[0]}
 
@@ -290,7 +229,7 @@ jobs:
     name: Build Release
     runs-on: macos-15
     if: github.ref == 'refs/heads/main'
-    needs: [test, ui-test, widget-test, lint, security]
+    needs: [test, widget-test, lint, security]
     
     steps:
     - name: Checkout

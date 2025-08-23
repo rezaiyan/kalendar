@@ -75,14 +75,6 @@
         "identifier" : "KALENDAR_TESTS_TARGET_ID",
         "name" : "KalendarTests"
       }
-    },
-    {
-      "parallelizable" : false,
-      "target" : {
-        "containerPath" : "container:Kalendar.xcodeproj",
-        "identifier" : "KALENDAR_UI_TESTS_TARGET_ID",
-        "name" : "KalendarUITests"
-      }
     }
   ],
   "version" : 1

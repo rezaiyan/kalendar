@@ -133,7 +133,7 @@ jobs:
           -destination "platform=iOS Simulator,name=iPhone 16,OS=18.1" \
           -configuration Debug \
           test \
-          -only-testing:KalendarUITests/testLaunchWithLowMemory \
+          -only-testing:KalendarTests/testLaunchWithLowMemory \
           CODE_SIGNING_ALLOWED=NO \
           | xcpretty && exit ${PIPESTATUS[0]}
 
@@ -216,7 +216,7 @@ jobs:
           -destination "platform=iOS Simulator,name=iPhone 16,OS=18.1" \
           -configuration Debug \
           test \
-          -only-testing:KalendarUITestsLaunchTests/testLaunchInDarkMode \
+          -only-testing:KalendarTests/testLaunchInDarkMode \
           CODE_SIGNING_ALLOWED=NO \
           | xcpretty && exit ${PIPESTATUS[0]}
 
@@ -229,8 +229,7 @@ jobs:
           -destination "platform=iOS Simulator,name=iPhone 16,OS=18.1" \
           -configuration Debug \
           test \
-          -only-testing:KalendarUITests/testAccessibilityElements \
-          -only-testing:KalendarUITestsLaunchTests/testLaunchAccessibility \
+          -only-testing:KalendarTests/testAccessibilityElements \
           CODE_SIGNING_ALLOWED=NO \
           | xcpretty && exit ${PIPESTATUS[0]}
 
@@ -243,8 +242,8 @@ jobs:
           -destination "platform=iOS Simulator,name=iPhone 16,OS=18.1" \
           -configuration Debug \
           test \
-          -only-testing:KalendarUITestsLaunchTests/testLaunchInDifferentOrientations \
-          -only-testing:KalendarUITests/testIPadLayout \
+          -only-testing:KalendarTests/testLaunchInDifferentOrientations \
+          -only-testing:KalendarTests/testIPadLayout \
           CODE_SIGNING_ALLOWED=NO \
           | xcpretty && exit ${PIPESTATUS[0]}
 

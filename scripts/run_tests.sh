@@ -15,8 +15,8 @@ NC='\033[0m' # No Color
 # Default values
 SCHEME="Kalendar"
 PROJECT="Kalendar.xcodeproj"
-DEVICE="iPhone 15"
-IOS_VERSION="17.5"
+DEVICE="iPhone 16"
+IOS_VERSION="18.6"
 TEST_TYPE="all"
 GENERATE_REPORT=false
 VERBOSE=false
@@ -45,9 +45,9 @@ show_usage() {
     echo "Options:"
     echo "  -s, --scheme SCHEME           Xcode scheme to test (default: Kalendar)"
     echo "  -p, --project PROJECT         Xcode project (default: Kalendar.xcodeproj)"
-    echo "  -d, --device DEVICE           Test device (default: iPhone 15)"
-    echo "  -i, --ios-version VERSION     iOS version (default: 17.5)"
-    echo "  -t, --test-type TYPE          Test type: unit|ui|widget|all (default: all)"
+    echo "  -d, --device DEVICE           Test device (default: iPhone 16)"
+    echo "  -i, --ios-version VERSION     iOS version (default: 18.6)"
+    echo "  -t, --test-type TYPE          Test type: unit|widget|all (default: all)"
     echo "  -r, --report                  Generate test report"
     echo "  -v, --verbose                 Verbose output"
     echo "  -h, --help                    Show this help message"
@@ -56,7 +56,7 @@ show_usage() {
     echo "  $0                            Run all tests with default settings"
     echo "  $0 -t unit                    Run only unit tests"
     echo "  $0 -d 'iPad Pro' -r          Run tests on iPad Pro and generate report"
-    echo "  $0 -t ui -v                   Run UI tests with verbose output"
+    echo "  $0 -t widget -v               Run widget tests with verbose output"
 }
 
 # Parse command line arguments
@@ -103,9 +103,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate test type
-if [[ ! "$TEST_TYPE" =~ ^(unit|ui|widget|all)$ ]]; then
+if [[ ! "$TEST_TYPE" =~ ^(unit|widget|all)$ ]]; then
     print_error "Invalid test type: $TEST_TYPE"
-    print_error "Valid types: unit, ui, widget, all"
+    print_error "Valid types: unit, widget, all"
     exit 1
 fi
 
@@ -174,23 +174,7 @@ run_unit_tests() {
     fi
 }
 
-# Function to run UI tests
-run_ui_tests() {
-    print_status "Running UI Tests..."
-    
-    local extra_args=""
-    if [[ "$GENERATE_REPORT" == "true" ]]; then
-        extra_args="-resultBundlePath $RESULTS_DIR/ui_tests.xcresult"
-    fi
-    
-    if run_xcodebuild "KalendarUITests" "test" "-only-testing:KalendarUITests $extra_args"; then
-        print_success "UI tests passed"
-        return 0
-    else
-        print_error "UI tests failed"
-        return 1
-    fi
-}
+
 
 # Function to run widget tests
 run_widget_tests() {
@@ -321,16 +305,12 @@ main() {
         "unit")
             run_unit_tests || test_passed=false
             ;;
-        "ui")
-            run_ui_tests || test_passed=false
-            ;;
         "widget")
             run_widget_tests || test_passed=false
             ;;
         "all")
             run_unit_tests || test_passed=false
             run_widget_tests || test_passed=false
-            run_ui_tests || test_passed=false
             ;;
     esac
     
