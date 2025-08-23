@@ -12,7 +12,7 @@ import SwiftUI
 
 // MARK: - Unit Tests using Swift Testing Framework
 struct KalendarTests {
-    
+
     // MARK: - Date Formatting Tests
     @Test("Current month year formatting")
     func testCurrentMonthYearFormatting() async throws {

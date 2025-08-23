@@ -50,7 +50,7 @@ jobs:
           -project Kalendar.xcodeproj \
           -scheme ${{ matrix.scheme }} \
           -configuration Debug \
-          -sdk iphonesimulator \
+          -destination "platform=iOS Simulator,name=iPhone SE (3rd generation)" \
           test \
           -only-testing:KalendarTests \
           CODE_SIGNING_ALLOWED=NO \
