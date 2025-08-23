@@ -52,6 +52,9 @@ jobs:
 
       - name: Test
         run: |
+          echo "Cleaning build directory..."
+          xcodebuild clean -project Kalendar.xcodeproj -scheme ${{ matrix.scheme }}
+          
           echo "Building app and running unit tests only..."
           xcodebuild \
             -project Kalendar.xcodeproj \
@@ -61,6 +64,7 @@ jobs:
             build test \
             -only-testing:KalendarTests \
             -skip-testing:KalendarUITests \
+            ENABLE_TESTABILITY=YES \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty && exit ${PIPESTATUS[0]}
 
@@ -87,6 +91,9 @@ jobs:
 
       - name: Test Widget Logic
         run: |
+          echo "Cleaning build directory..."
+          xcodebuild clean -project Kalendar.xcodeproj -scheme Kalendar
+          
           echo "Building app and testing widget logic within KalendarTests..."
           xcodebuild \
             -project Kalendar.xcodeproj \
@@ -96,6 +103,7 @@ jobs:
             build test \
             -only-testing:KalendarTests/WidgetCalendarDayTests,KalendarTests/WidgetPerformanceTests \
             -skip-testing:KalendarUITests \
+            ENABLE_TESTABILITY=YES \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty && exit ${PIPESTATUS[0]}
 
@@ -165,6 +173,9 @@ jobs:
 
       - name: Test with Coverage
         run: |
+          echo "Cleaning build directory..."
+          xcodebuild clean -project Kalendar.xcodeproj -scheme Kalendar
+          
           xcodebuild \
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
@@ -173,6 +184,7 @@ jobs:
             build test \
             -only-testing:KalendarTests \
             -enableCodeCoverage YES \
+            ENABLE_TESTABILITY=YES \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty && exit ${PIPESTATUS[0]}
 
@@ -198,6 +210,9 @@ jobs:
 
       - name: Run Performance Tests
         run: |
+          echo "Cleaning build directory..."
+          xcodebuild clean -project Kalendar.xcodeproj -scheme Kalendar
+          
           xcodebuild \
             -project Kalendar.xcodeproj \
             -scheme Kalendar \
@@ -206,6 +221,7 @@ jobs:
             build test \
             -only-testing:KalendarTests/testCalendarGenerationPerformance \
             -skip-testing:KalendarUITests \
+            ENABLE_TESTABILITY=YES \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty && exit ${PIPESTATUS[0]}
 
