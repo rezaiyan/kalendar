@@ -282,23 +282,39 @@ struct WidgetExtension: Widget {
         .configurationDisplayName("Kalendar")
         .description("Beautiful monthly calendar widget")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .contentMarginsDisabled()
     }
 }
 
 struct KalendarWidgetExtensionEntryView: View {
     var entry: CalendarEntry
     @Environment(\.widgetFamily) var family
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        switch family {
-        case .systemSmall:
-            SmallContentView(entry: entry)
-        case .systemMedium:
-            MediumContentView(entry: entry)
-        case .systemLarge:
-            LargeContentView(entry: entry)
-        default:
-            LargeContentView(entry: entry)
+        Group {
+            switch family {
+            case .systemSmall:
+                SmallContentView(entry: entry)
+            case .systemMedium:
+                MediumContentView(entry: entry)
+            case .systemLarge:
+                LargeContentView(entry: entry)
+            default:
+                LargeContentView(entry: entry)
+            }
+        }
+        .widgetBackground(backgroundColor(for: colorScheme))
+    }
+    
+    private func backgroundColor(for colorScheme: ColorScheme) -> Color {
+        switch colorScheme {
+        case .light:
+            return Color(.systemBackground)
+        case .dark:
+            return Color(.systemBackground)
+        @unknown default:
+            return Color(.systemBackground)
         }
     }
 }
@@ -774,6 +790,21 @@ struct LargeContentView: View {
         weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         initialTime: Date()
     )
+}
+
+// MARK: - Widget Background Extension
+extension View {
+    func widgetBackground(_ backgroundColor: Color) -> some View {
+        if #available(iOS 17.0, *) {
+            return self
+                .containerBackground(for: .widget) {
+                    backgroundColor
+                }
+        } else {
+            return self
+                .background(backgroundColor)
+        }
+    }
 }
 
 #Preview(as: .systemLarge) {

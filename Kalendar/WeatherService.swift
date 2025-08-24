@@ -56,6 +56,13 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
         #if targetEnvironment(simulator)
         currentLocation = CLLocation(latitude: 37.7749, longitude: -122.4194)
         #endif
+        
+        // TestFlight-specific optimizations
+        #if DEBUG
+        print("🌐 [INIT] Debug build - enhanced logging enabled")
+        #else
+        print("🌐 [INIT] Release/TestFlight build - optimized for production")
+        #endif
     }
     
     private func setupLocationManager() {
@@ -68,36 +75,78 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
         let status = locationManager.authorizationStatus
         
         print("🌐 [LOCATION] 🔐 Current authorization status: \(status.rawValue)")
+        #if DEBUG
+        print("🌐 [LOCATION] 📱 TestFlight build: NO")
+        #else
+        print("🌐 [LOCATION] 📱 TestFlight build: YES")
+        #endif
         
         switch status {
         case .notDetermined:
             print("🌐 [LOCATION] 📱 Requesting location permission...")
             locationManager.requestWhenInUseAuthorization()
+            
+            // For TestFlight, add a fallback timer to ensure location is requested
+            #if !DEBUG
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                if self.currentLocation == nil {
+                    print("🌐 [LOCATION] 🔄 TestFlight fallback: requesting location again")
+                    self.locationManager.requestWhenInUseAuthorization()
+                }
+            }
+            #endif
+            
         case .denied:
             print("🌐 [LOCATION] ❌ Location permission denied - cannot request location")
             error = "Location access required for weather. Please enable in Settings > Privacy & Security > Location Services > Kalendar"
             shouldShowLocationRequest = true
             
-            // Try to use mock location for testing
+            // Try to use mock location for testing (including TestFlight fallback)
             if currentLocation == nil {
-                print("🌐 [LOCATION] 🔄 Attempting to use mock location for testing")
+                print("🌐 [LOCATION] 🔄 Attempting to use fallback location")
                 #if targetEnvironment(simulator)
                 currentLocation = CLLocation(latitude: 37.7749, longitude: -122.4194)
                 print("🌐 [LOCATION] ✅ Mock location set for simulator")
+                #else
+                // For TestFlight, use a default location as fallback
+                currentLocation = CLLocation(latitude: 37.7749, longitude: -122.4194)
+                print("🌐 [LOCATION] ✅ Fallback location set for TestFlight")
+                #endif
+                
                 Task {
                     await fetchWeatherForCurrentMonth()
                 }
-                #endif
             }
+            
         case .restricted:
             print("🌐 [LOCATION] ❌ Location access restricted")
             error = "Location access is restricted. Please check your device settings."
+            
+            // For TestFlight, try fallback location
+            if currentLocation == nil {
+                print("🌐 [LOCATION] 🔄 TestFlight restricted fallback: using default location")
+                currentLocation = CLLocation(latitude: 37.7749, longitude: -122.4194)
+                Task {
+                    await fetchWeatherForCurrentMonth()
+                }
+            }
+            
         case .authorizedWhenInUse, .authorizedAlways:
             print("🌐 [LOCATION] ✅ Location permission granted - requesting location")
             locationManager.requestLocation()
+            
         @unknown default:
             print("🌐 [LOCATION] ❓ Unknown authorization status: \(status.rawValue)")
             error = "Unknown location authorization status"
+            
+            // For TestFlight, try fallback location
+            if currentLocation == nil {
+                print("🌐 [LOCATION] 🔄 TestFlight unknown status fallback: using default location")
+                currentLocation = CLLocation(latitude: 37.7749, longitude: -122.4194)
+                Task {
+                    await fetchWeatherForCurrentMonth()
+                }
+            }
         }
     }
     
@@ -126,23 +175,33 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
                 let dateString = formatDate(date)
                 print("🌐 [NETWORK] 📡 [\(index + 1)/\(dates.count)] Fetching weather for \(dateString)")
                 
-                // Try to fetch weather with retry
+                // Try to fetch weather with retry (enhanced for TestFlight)
                 var weather: WeatherInfo?
                 var lastError: Error?
                 
-                for attempt in 1...2 { // Try up to 2 times
+                #if DEBUG
+                let maxAttempts = 2 // Debug build
+                #else
+                let maxAttempts = 3 // More retries for TestFlight
+                #endif
+                for attempt in 1...maxAttempts {
                     do {
                         if attempt > 1 {
-                            print("🌐 [NETWORK] 🔄 Retry attempt \(attempt) for \(dateString)")
+                            print("🌐 [NETWORK] 🔄 Retry attempt \(attempt)/\(maxAttempts) for \(dateString)")
                         }
                         
                         weather = try await fetchWeatherForDate(date, at: location)
                         break
                     } catch {
                         lastError = error
-                        if attempt < 2 {
-                            print("🌐 [NETWORK] ⏳ Waiting 1 second before retry for \(dateString)")
-                            try await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1 second before retry
+                        if attempt < maxAttempts {
+                            #if DEBUG
+                            let waitTime = 1.0 // Debug build
+                            #else
+                            let waitTime = 2.0 // Longer wait for TestFlight
+                            #endif
+                            print("🌐 [NETWORK] ⏳ Waiting \(waitTime) seconds before retry for \(dateString)")
+                            try await Task.sleep(nanoseconds: UInt64(waitTime * 1_000_000_000))
                         }
                     }
                 }
@@ -186,7 +245,7 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let dateString = dateFormatter.string(from: date)
         
-        let urlString = "\(baseURL)?latitude=\(latitude)&longitude=\(longitude)&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&start_date=\(dateString)&end_date=\(dateString)"
+        let urlString = "\(baseURL)?latitude=\(latitude)&longitude=\(longitude)&daily=weather_code,temperature_2m_max,temperature_2m_min,relative_humidity_2m_max,wind_speed_10m_max&timezone=auto&start_date=\(dateString)&end_date=\(dateString)"
         
         guard let url = URL(string: urlString) else {
             print("🌐 [NETWORK] ❌ Invalid URL: \(urlString)")
@@ -199,10 +258,18 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
         
         let startTime = Date()
         
-        // Create a URLSession with timeout
+        // Create a URLSession with timeout and TestFlight optimizations
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 10.0 // 10 seconds timeout
-        config.timeoutIntervalForResource = 15.0 // 15 seconds total timeout
+        config.timeoutIntervalForRequest = 15.0 // Increased timeout for TestFlight
+        config.timeoutIntervalForResource = 20.0 // Increased total timeout for TestFlight
+        
+        // TestFlight-specific network optimizations
+        #if !DEBUG
+        config.waitsForConnectivity = true
+        config.allowsCellularAccess = true
+        print("🌐 [NETWORK] 🚀 TestFlight network optimizations enabled")
+        #endif
+        
         let session = URLSession(configuration: config)
         
         do {
@@ -234,7 +301,9 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
             guard !response.daily.time.isEmpty,
                   !response.daily.weather_code.isEmpty,
                   !response.daily.temperature_2m_max.isEmpty,
-                  !response.daily.temperature_2m_min.isEmpty else {
+                  !response.daily.temperature_2m_min.isEmpty,
+                  !response.daily.relative_humidity_2m_max.isEmpty,
+                  !response.daily.wind_speed_10m_max.isEmpty else {
                 print("🌐 [NETWORK] ❌ Empty arrays in response")
                 print("🌐 [NETWORK] 📄 Response structure: \(response)")
                 throw WeatherError.noData
@@ -243,37 +312,29 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
             let weatherCode = response.daily.weather_code[0]
             let maxTemp = response.daily.temperature_2m_max[0]
             let minTemp = response.daily.temperature_2m_min[0]
+            let humidity = response.daily.relative_humidity_2m_max[0]
+            let windSpeed = response.daily.wind_speed_10m_max[0]
             
             print("🌐 [NETWORK] 🌤️ Weather data parsed successfully:")
             print("   - Weather code: \(weatherCode)")
             print("   - Max temp: \(maxTemp)°C")
             print("   - Min temp: \(minTemp)°C")
+            print("   - Humidity: \(humidity)%")
+            print("   - Wind speed: \(windSpeed) km/h")
             
             return WeatherInfo(
                 weatherCode: weatherCode,
                 temperature: maxTemp,
                 minTemp: minTemp,
                 maxTemp: maxTemp,
-                humidity: 0.0, // Placeholder, not available in this API
-                windSpeed: 0.0, // Placeholder, not available in this API
+                humidity: humidity,
+                windSpeed: windSpeed,
                 date: date
             )
         } catch let decodingError as DecodingError {
             print("🌐 [NETWORK] ❌ JSON Decoding Error:")
-            switch decodingError {
-            case .dataCorrupted(let context):
-                print("   - Data corrupted: \(context.debugDescription)")
-                print("   - Coding path: \(context.codingPath)")
-            case .keyNotFound(let key, let context):
-                print("   - Key not found: \(key.stringValue)")
-                print("   - Coding path: \(context.codingPath)")
-            case .typeMismatch(let type, let context):
-                print("   - Type mismatch: expected \(type), found at \(context.codingPath)")
-            case .valueNotFound(let type, let context):
-                print("   - Value not found: expected \(type) at \(context.codingPath)")
-            @unknown default:
-                print("   - Unknown decoding error: \(decodingError)")
-            }
+            let errorDescription = String(describing: decodingError)
+            print("   - Error details: \(errorDescription)")
             throw WeatherError.networkError
         } catch {
             print("🌐 [NETWORK] ❌ Network Error: \(error.localizedDescription)")
@@ -292,6 +353,26 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
+    }
+    
+    // MARK: - TestFlight Optimizations
+    func initializeForTestFlight() {
+        #if DEBUG
+        // Debug build - no special optimizations needed
+        #else
+        print("🌐 [TESTFLIGHT] 🚀 Initializing TestFlight optimizations...")
+        
+        // Ensure location manager is properly configured
+        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        locationManager.distanceFilter = 1000 // 1km filter for TestFlight
+        
+        // Add a small delay to ensure proper initialization
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.requestLocation()
+        }
+        
+        print("🌐 [TESTFLIGHT] ✅ TestFlight optimizations initialized")
+        #endif
     }
     
     // MARK: - Error Management
@@ -315,6 +396,26 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
         }
         
         SharedWeatherService.shared.saveWeatherData(sharedWeatherData)
+    }
+    
+    // MARK: - TestFlight Weather Initialization
+    func initializeWeatherForTestFlight() async {
+        #if DEBUG
+        // Debug build - no special initialization needed
+        #else
+        print("🌐 [TESTFLIGHT] 🌤️ Initializing weather data for TestFlight...")
+        
+        // Ensure we have a location (use fallback if needed)
+        if currentLocation == nil {
+            print("🌐 [TESTFLIGHT] 📍 No location available, using fallback")
+            currentLocation = CLLocation(latitude: 37.7749, longitude: -122.4194)
+        }
+        
+        // Fetch weather for current month with TestFlight optimizations
+        await fetchWeatherForCurrentMonth()
+        
+        print("🌐 [TESTFLIGHT] ✅ Weather initialization completed")
+        #endif
     }
     
     // MARK: - On-Demand Weather Fetching
@@ -495,6 +596,8 @@ struct DailyData: Codable {
     let weather_code: [Int]
     let temperature_2m_max: [Double]
     let temperature_2m_min: [Double]
+    let relative_humidity_2m_max: [Double]
+    let wind_speed_10m_max: [Double]
 }
 
 struct WeatherInfo {

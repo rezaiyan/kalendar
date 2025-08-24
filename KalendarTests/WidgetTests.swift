@@ -15,7 +15,6 @@ import SwiftUI
 
 // MARK: - Widget Timeline Logic Tests
 struct WidgetLogicTests {
-    
     @Test("Calendar entry creation")
     func testCalendarEntryCreation() async throws {
         let testDate = Calendar.current.date(from: DateComponents(year: 2024, month: 8, day: 19))!
@@ -185,7 +184,7 @@ class WidgetCalendarDayTests: XCTestCase {
         // Test various known dates
         let testCases = [
             (DateComponents(year: 2024, month: 8, day: 1), 5), // Thursday
-            (DateComponents(year: 2024, month: 1, day: 1), 2), // Monday  
+            (DateComponents(year: 2024, month: 1, day: 1), 2), // Monday
             (DateComponents(year: 2024, month: 12, day: 1), 1), // Sunday
         ]
         
@@ -263,8 +262,8 @@ class WidgetPerformanceTests: XCTestCase {
                 for _ in 0..<mondayBasedWeekday {
                     days.append(0)
                 }
-                for day in 1...daysInMonth {
-                    days.append(day)
+                for _ in 1...daysInMonth {
+                    days.append(0)
                 }
             }
         }

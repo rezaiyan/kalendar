@@ -64,9 +64,19 @@ struct ContentView: View {
                 LocationRequestView(weatherService: weatherService)
             }
             .onAppear {
+                // Initialize TestFlight optimizations if needed
+                weatherService.initializeForTestFlight()
+                
+                // Request location and fetch weather
                 weatherService.requestLocation()
                 Task {
-                    await weatherService.fetchWeatherForCurrentMonth()
+                    // For TestFlight, use specialized initialization
+                    await weatherService.initializeWeatherForTestFlight()
+                    
+                    // Fallback to regular fetch if TestFlight init didn't work
+                    if weatherService.weatherData.isEmpty {
+                        await weatherService.fetchWeatherForCurrentMonth()
+                    }
                 }
             }
             .onChange(of: weatherService.shouldShowLocationRequest) { shouldShow in
@@ -259,7 +269,7 @@ struct ContentView: View {
                 Text(currentMonthYear)
                     .font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundColor(.primary)
-                Text("Today is \(currentDayName)")
+                Text(currentDayName)
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundColor(.secondary)
             }
