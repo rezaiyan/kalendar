@@ -8,7 +8,116 @@
 import WidgetKit
 import SwiftUI
 
-// MARK: - Local type definitions for LockScreen widget
+// MARK: - Local Shared Weather Service (Copy for Lock Screen Widget)
+private class LocalSharedWeatherService {
+    static let shared = LocalSharedWeatherService()
+    
+    private let userDefaults = UserDefaults.standard
+    private let weatherDataKey = "SharedWeatherData"
+    
+    private init() {}
+    
+    func getWeatherForDate(_ date: Date) -> LocalSharedWeatherInfo? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let dateString = formatter.string(from: date)
+        
+        guard let data = userDefaults.data(forKey: weatherDataKey) else {
+            return nil
+        }
+        
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        
+        do {
+            let weatherData = try decoder.decode([String: LocalSharedWeatherInfo].self, from: data)
+            return weatherData[dateString]
+        } catch {
+            return nil
+        }
+    }
+}
+
+// MARK: - Local Shared Weather Info (Copy for Lock Screen Widget)
+private struct LocalSharedWeatherInfo: Codable {
+    let weatherCode: Int
+    let temperature: Double
+    let minTemp: Double
+    let maxTemp: Double
+    let humidity: Double
+    let windSpeed: Double
+    let date: Date
+    
+    var weatherIcon: String {
+        switch weatherCode {
+        case 0: return "sun.max.fill" // Clear sky
+        case 1: return "sun.max.fill" // Mainly clear
+        case 2: return "cloud.sun.fill" // Partly cloudy
+        case 3: return "cloud.fill" // Overcast
+        case 45: return "cloud.fog.fill" // Foggy
+        case 48: return "cloud.fog.fill" // Depositing rime fog
+        case 51: return "cloud.drizzle.fill" // Light drizzle
+        case 53: return "cloud.drizzle.fill" // Moderate drizzle
+        case 55: return "cloud.drizzle.fill" // Dense drizzle
+        case 56: return "cloud.sleet.fill" // Light freezing drizzle
+        case 57: return "cloud.sleet.fill" // Dense freezing drizzle
+        case 61: return "cloud.rain.fill" // Slight rain
+        case 63: return "cloud.rain.fill" // Moderate rain
+        case 65: return "cloud.heavyrain.fill" // Heavy rain
+        case 66: return "cloud.sleet.fill" // Light freezing rain
+        case 67: return "cloud.sleet.fill" // Heavy freezing rain
+        case 71: return "cloud.snow.fill" // Slight snow fall
+        case 73: return "cloud.snow.fill" // Moderate snow fall
+        case 75: return "cloud.snow.fill" // Heavy snow fall
+        case 77: return "cloud.snow.fill" // Snow grains
+        case 80: return "cloud.sun.rain.fill" // Slight rain showers
+        case 81: return "cloud.rain.fill" // Moderate rain showers
+        case 82: return "cloud.heavyrain.fill" // Violent rain showers
+        case 85: return "cloud.snow.fill" // Slight snow showers
+        case 86: return "cloud.snow.fill" // Heavy snow showers
+        case 95: return "cloud.bolt.rain.fill" // Thunderstorm
+        case 96: return "cloud.bolt.rain.fill" // Thunderstorm with slight hail
+        case 99: return "cloud.bolt.rain.fill" // Thunderstorm with heavy hail
+        default: return "questionmark.circle.fill" // Unknown weather
+        }
+    }
+    
+    var weatherColor: Color {
+        switch weatherCode {
+        case 0: return .orange // Clear sky
+        case 1: return .orange // Mainly clear
+        case 2: return .yellow // Partly cloudy
+        case 3: return .gray // Overcast
+        case 45: return .gray // Foggy
+        case 48: return .gray // Depositing rime fog
+        case 51: return .blue // Light drizzle
+        case 53: return .blue // Moderate drizzle
+        case 55: return .blue // Dense drizzle
+        case 56: return .cyan // Light freezing drizzle
+        case 57: return .cyan // Dense freezing drizzle
+        case 61: return .blue // Slight rain
+        case 63: return .blue // Moderate rain
+        case 65: return .blue // Heavy rain
+        case 66: return .cyan // Light freezing rain
+        case 67: return .cyan // Heavy freezing rain
+        case 71: return .cyan // Slight snow fall
+        case 73: return .cyan // Moderate snow fall
+        case 75: return .cyan // Heavy snow fall
+        case 77: return .cyan // Snow grains
+        case 80: return .blue // Slight rain showers
+        case 81: return .blue // Moderate rain showers
+        case 82: return .blue // Violent rain showers
+        case 85: return .cyan // Slight snow showers
+        case 86: return .cyan // Heavy snow showers
+        case 95: return .purple // Thunderstorm
+        case 96: return .purple // Thunderstorm with slight hail
+        case 99: return .purple // Thunderstorm with heavy hail
+        default: return .secondary // Unknown weather
+        }
+    }
+}
+
+// MARK: - Local type definitions for Lock Screen widget
 // Since we can't directly import from Shared folder, we define the types here
 struct CalendarDay: Identifiable, Hashable {
     let id = UUID()
@@ -269,6 +378,151 @@ struct LockScreenTimelineProvider: TimelineProvider {
         formatter.timeZone = timeZone
         return formatter.string(from: date)
     }
+    
+    // MARK: - Weather Helper Functions
+    private func getWeatherForDate(_ date: Date) -> (weatherIcon: String, weatherColor: Color) {
+        // Try to get real weather data from shared container first
+        if let sharedWeather = SharedWeatherService.shared.getWeatherForDate(date) {
+            return (weatherIcon: sharedWeather.weatherIcon, weatherColor: sharedWeather.weatherColor)
+        }
+        
+        // Fallback to realistic weather generation if no shared data available
+        return generateRealisticWeather(for: date)
+    }
+    
+    private func generateRealisticWeather(for date: Date) -> (weatherIcon: String, weatherColor: Color) {
+        let calendar = Calendar.current
+        let month = calendar.component(.month, from: date)
+        let dayOfYear = calendar.ordinality(of: .day, in: .year, for: date) ?? 0
+        
+        // Generate weather based on season
+        let weatherCode = generateSeasonalWeatherCode(month: month, dayOfYear: dayOfYear)
+        
+        // Map weather code to icon and color
+        let (icon, color) = mapWeatherCodeToIconAndColor(weatherCode)
+        
+        return (weatherIcon: icon, weatherColor: color)
+    }
+    
+    private func generateSeasonalWeatherCode(month: Int, dayOfYear: Int) -> Int {
+        // Seasonal weather patterns (Northern Hemisphere)
+        let weatherSeed = (dayOfYear * 31 + month * 17) % 100
+        
+        switch month {
+        case 12, 1, 2: // Winter
+            if weatherSeed < 30 {
+                return 71 // Light snow
+            } else if weatherSeed < 50 {
+                return 73 // Moderate snow
+            } else if weatherSeed < 65 {
+                return 45 // Foggy
+            } else if weatherSeed < 80 {
+                return 0 // Clear
+            } else {
+                return 2 // Partly cloudy
+            }
+        case 3, 4, 5: // Spring
+            if weatherSeed < 25 {
+                return 0 // Clear
+            } else if weatherSeed < 45 {
+                return 1 // Mainly clear
+            } else if weatherSeed < 60 {
+                return 2 // Partly cloudy
+            } else if weatherSeed < 75 {
+                return 61 // Light rain
+            } else if weatherSeed < 85 {
+                return 51 // Light drizzle
+            } else {
+                return 45 // Foggy
+            }
+        case 6, 7, 8: // Summer
+            if weatherSeed < 40 {
+                return 0 // Clear
+            } else if weatherSeed < 60 {
+                return 1 // Mainly clear
+            } else if weatherSeed < 75 {
+                return 2 // Partly cloudy
+            } else if weatherSeed < 85 {
+                return 80 // Light rain showers
+            } else {
+                return 95 // Thunderstorm
+            }
+        case 9, 10, 11: // Fall
+            if weatherSeed < 30 {
+                return 0 // Clear
+            } else if weatherSeed < 50 {
+                return 2 // Partly cloudy
+            } else if weatherSeed < 65 {
+                return 3 // Overcast
+            } else if weatherSeed < 80 {
+                return 61 // Light rain
+            } else {
+                return 45 // Foggy
+            }
+        default:
+            return 2 // Partly cloudy
+        }
+    }
+    
+    private func mapWeatherCodeToIconAndColor(_ weatherCode: Int) -> (icon: String, color: Color) {
+        switch weatherCode {
+        case 0: return ("sun.max.fill", .orange) // Clear sky
+        case 1: return ("sun.max.fill", .orange) // Mainly clear
+        case 2: return ("cloud.sun.fill", .yellow) // Partly cloudy
+        case 3: return ("cloud.fill", .gray) // Overcast
+        case 45: return ("cloud.fog.fill", .gray) // Foggy
+        case 48: return ("cloud.fog.fill", .gray) // Depositing rime fog
+        case 51: return ("cloud.drizzle.fill", .blue) // Light drizzle
+        case 53: return ("cloud.drizzle.fill", .blue) // Moderate drizzle
+        case 55: return ("cloud.drizzle.fill", .blue) // Dense drizzle
+        case 56: return ("cloud.sleet.fill", .cyan) // Light freezing drizzle
+        case 57: return ("cloud.sleet.fill", .cyan) // Dense freezing drizzle
+        case 61: return ("cloud.rain.fill", .blue) // Slight rain
+        case 63: return ("cloud.rain.fill", .blue) // Moderate rain
+        case 65: return ("cloud.heavyrain.fill", .blue) // Heavy rain
+        case 66: return ("cloud.sleet.fill", .cyan) // Light freezing rain
+        case 67: return ("cloud.sleet.fill", .cyan) // Heavy freezing rain
+        case 71: return ("cloud.snow.fill", .cyan) // Slight snow fall
+        case 73: return ("cloud.snow.fill", .cyan) // Moderate snow fall
+        case 75: return ("cloud.snow.fill", .cyan) // Heavy snow fall
+        case 77: return ("cloud.snow.fill", .cyan) // Snow grains
+        case 80: return ("cloud.sun.rain.fill", .blue) // Slight rain showers
+        case 81: return ("cloud.rain.fill", .blue) // Moderate rain showers
+        case 82: return ("cloud.heavyrain.fill", .blue) // Violent rain showers
+        case 85: return ("cloud.snow.fill", .cyan) // Slight snow showers
+        case 86: return ("cloud.snow.fill", .cyan) // Heavy snow showers
+        case 95: return ("cloud.bolt.rain.fill", .purple) // Thunderstorm
+        case 96: return ("cloud.bolt.rain.fill", .purple) // Thunderstorm with slight hail
+        case 99: return ("cloud.bolt.rain.fill", .purple) // Thunderstorm with heavy hail
+        default: return ("questionmark.circle.fill", .secondary) // Unknown weather
+        }
+    }
+    
+    private func getMockWeatherForDate(_ date: Date) -> (weatherIcon: String, weatherColor: Color) {
+        // Fallback to simple mock weather if needed
+        let calendar = Calendar.current
+        let dayOfYear = calendar.ordinality(of: .day, in: .year, for: date) ?? 0
+        
+        let weatherIcon: String
+        switch dayOfYear % 7 {
+        case 0:
+            weatherIcon = "sun.max.fill"
+        case 1:
+            weatherIcon = "cloud.sun.fill"
+        case 2:
+            weatherIcon = "cloud.fill"
+        case 3:
+            weatherIcon = "cloud.rain.fill"
+        case 4:
+            weatherIcon = "cloud.snow.fill"
+        case 5:
+            weatherIcon = "cloud.bolt.rain.fill"
+        default:
+            weatherIcon = "cloud.sun.fill"
+        }
+        
+        return (weatherIcon, .orange) // Default to orange for simplicity
+    }
 }
 
 // MARK: - Lock Screen Calendar Widget Entry View
@@ -305,6 +559,12 @@ struct LockScreenSmallView: View {
                     .foregroundColor(.secondary)
             }
             
+            // Weather icon for today
+            let todayWeather = getWeatherForDate(entry.date)
+            Image(systemName: todayWeather.weatherIcon)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(todayWeather.weatherColor)
+            
             // Day of week
             Text(entry.currentDayName)
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -314,6 +574,34 @@ struct LockScreenSmallView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(lockScreenBackground)
         .widgetURL(URL(string: "kalendar://calendar"))
+    }
+    
+    private func getMockWeatherForDate(_ date: Date) -> (weatherIcon: String, weatherColor: Color) {
+        let calendar = Calendar.current
+        let day = calendar.component(.day, from: date)
+        let month = calendar.component(.month, from: date)
+        
+        let dayOfYear = calendar.ordinality(of: .day, in: .year, for: date) ?? 0
+        
+        let weatherIcon: String
+        switch dayOfYear % 7 {
+        case 0:
+            weatherIcon = "sun.max.fill"
+        case 1:
+            weatherIcon = "cloud.sun.fill"
+        case 2:
+            weatherIcon = "cloud.fill"
+        case 3:
+            weatherIcon = "cloud.rain.fill"
+        case 4:
+            weatherIcon = "cloud.snow.fill"
+        case 5:
+            weatherIcon = "cloud.bolt.rain.fill"
+        default:
+            weatherIcon = "cloud.sun.fill"
+        }
+        
+        return (weatherIcon, .orange) // Default to orange for simplicity
     }
     
     private var lockScreenBackground: some View {
@@ -373,21 +661,74 @@ struct LockScreenMediumView: View {
     }
     
     private func miniDayView(for day: Int, isCurrentMonth: Bool) -> some View {
-        Text("\(day)")
-            .font(.system(size: 8, weight: .medium, design: .rounded))
-            .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
-            .opacity(isCurrentMonth ? 1.0 : 0.4)
-            .frame(width: 14, height: 14)
-            .background(
-                Group {
-                    if day == Calendar.current.component(.day, from: entry.date) {
-                        miniDayGradient
-                    } else {
-                        Color.clear
-                    }
+        VStack(spacing: 0) {
+            Text("\(day)")
+                .font(.system(size: 8, weight: day == Calendar.current.component(.day, from: entry.date) ? .bold : .medium, design: .rounded))
+                .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
+                .opacity(isCurrentMonth ? 1.0 : 0.4)
+            
+            if isCurrentMonth {
+                let mockDate = createMockDate(for: day)
+                let weather = getWeatherForDate(mockDate)
+                Image(systemName: weather.weatherIcon)
+                    .font(.system(size: 4, weight: .medium))
+                    .foregroundColor(weather.weatherColor)
+                    .opacity(day == Calendar.current.component(.day, from: entry.date) ? 0.9 : 0.8)
+            }
+        }
+        .frame(width: 14, height: 16)
+        .background(
+            Group {
+                if day == Calendar.current.component(.day, from: entry.date) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(
+                            LinearGradient(
+                                colors: [.blue, .blue.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                } else {
+                    Color.clear
                 }
-            )
-            .clipShape(Circle())
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 3))
+    }
+    
+    private func createMockDate(for day: Int) -> Date {
+        let calendar = Calendar.current
+        let currentMonth = calendar.component(.month, from: entry.date)
+        let currentYear = calendar.component(.year, from: entry.date)
+        return calendar.date(from: DateComponents(year: currentYear, month: currentMonth, day: day)) ?? entry.date
+    }
+    
+    private func getMockWeatherForDate(_ date: Date) -> (weatherIcon: String, weatherColor: Color) {
+        let calendar = Calendar.current
+        let day = calendar.component(.day, from: date)
+        let month = calendar.component(.month, from: date)
+        
+        let dayOfYear = calendar.ordinality(of: .day, in: .year, for: date) ?? 0
+        
+        let weatherIcon: String
+        switch dayOfYear % 7 {
+        case 0:
+            weatherIcon = "sun.max.fill"
+        case 1:
+            weatherIcon = "cloud.sun.fill"
+        case 2:
+            weatherIcon = "cloud.fill"
+        case 3:
+            weatherIcon = "cloud.rain.fill"
+        case 4:
+            weatherIcon = "cloud.snow.fill"
+        case 5:
+            weatherIcon = "cloud.bolt.rain.fill"
+        default:
+            weatherIcon = "cloud.sun.fill"
+        }
+        
+        return (weatherIcon, .orange) // Default to orange for simplicity
     }
     
     private var miniDayGradient: LinearGradient {

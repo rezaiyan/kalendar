@@ -326,7 +326,7 @@ struct SmallContentView: View {
             
             Spacer()
         }
-        .padding(8)
+        .padding(6)
     }
     
     private var compactCalendarGrid: some View {
@@ -342,7 +342,7 @@ struct SmallContentView: View {
             }
             
             // Compact 3x3 grid showing current week and next week preview
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 2) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 7), spacing: 1) {
                 ForEach(0..<21, id: \.self) { index in
                     if index < entry.allCalendarDays.count {
                         let calendarDay = entry.allCalendarDays[index]
@@ -354,21 +354,49 @@ struct SmallContentView: View {
     }
     
     private func compactDayView(for day: Int, isCurrentMonth: Bool) -> some View {
-        Text("\(day)")
-            .font(.system(size: 10, weight: .medium, design: .rounded))
-            .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
-            .opacity(isCurrentMonth ? 1.0 : 0.4)
-            .frame(width: 18, height: 18)
-            .background(
-                Group {
-                    if day == Calendar.current.component(.day, from: entry.date) {
-                        dayGradient
-                    } else {
-                        Color.clear
-                    }
+        VStack(spacing: 1) {
+            Text("\(day)")
+                .font(.system(size: 11, weight: day == Calendar.current.component(.day, from: entry.date) ? .bold : .medium, design: .rounded))
+                .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
+                .opacity(isCurrentMonth ? 1.0 : 0.4)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            
+            if isCurrentMonth {
+                let mockDate = createMockDate(for: day)
+                let weather = WidgetWeatherService.shared.getWeatherForDate(mockDate)
+                Image(systemName: weather.weatherIcon)
+                    .font(.system(size: 9))
+                    .foregroundColor(weather.weatherColor)
+                    .frame(width: 10, height: 10)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .background(
+            Group {
+                if day == Calendar.current.component(.day, from: entry.date) {
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(
+                            LinearGradient(
+                                colors: [.blue, .blue.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                } else {
+                    Color.clear
                 }
-            )
-            .clipShape(Circle())
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+    }
+    
+    private func createMockDate(for day: Int) -> Date {
+        let calendar = Calendar.current
+        let currentMonth = calendar.component(.month, from: entry.date)
+        let currentYear = calendar.component(.year, from: entry.date)
+        return calendar.date(from: DateComponents(year: currentYear, month: currentMonth, day: day)) ?? entry.date
     }
     
     private var dayGradient: LinearGradient {
@@ -385,7 +413,7 @@ struct MediumContentView: View {
     let entry: CalendarEntry
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             // Left side: Date info
             VStack(alignment: .leading, spacing: 6) {
                 Text(entry.currentDayName)
@@ -403,7 +431,7 @@ struct MediumContentView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             
             // Right side: Compact calendar
-            VStack(spacing: 8) {
+            VStack(spacing: 6) {
                 // Weekday headers
                 HStack(spacing: 0) {
                     ForEach(Array(["M", "T", "W", "T", "F", "S", "S"].enumerated()), id: \.offset) { index, day in
@@ -415,7 +443,7 @@ struct MediumContentView: View {
                 }
                 
                 // 4x4 calendar grid
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 7), spacing: 3) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 2) {
                     ForEach(0..<28, id: \.self) { index in
                         if index < entry.allCalendarDays.count {
                             let calendarDay = entry.allCalendarDays[index]
@@ -425,25 +453,53 @@ struct MediumContentView: View {
                 }
             }
         }
-        .padding(12)
+        .padding(10)
     }
     
     private func mediumDayView(for day: Int, isCurrentMonth: Bool) -> some View {
-        Text("\(day)")
-            .font(.system(size: 11, weight: .medium, design: .rounded))
-            .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
-            .opacity(isCurrentMonth ? 1.0 : 0.4)
-            .frame(width: 20, height: 20)
-            .background(
-                Group {
-                    if day == Calendar.current.component(.day, from: entry.date) {
-                        dayGradient
-                    } else {
-                        Color.clear
-                    }
+        VStack(spacing: 2) {
+            Text("\(day)")
+                .font(.system(size: 12, weight: day == Calendar.current.component(.day, from: entry.date) ? .bold : .medium, design: .rounded))
+                .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
+                .opacity(isCurrentMonth ? 1.0 : 0.4)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            
+            if isCurrentMonth {
+                let mockDate = createMockDate(for: day)
+                let weather = WidgetWeatherService.shared.getWeatherForDate(mockDate)
+                Image(systemName: weather.weatherIcon)
+                    .font(.system(size: 10))
+                    .foregroundColor(weather.weatherColor)
+                    .frame(width: 12, height: 12)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .background(
+            Group {
+                if day == Calendar.current.component(.day, from: entry.date) {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(
+                            LinearGradient(
+                                colors: [.blue, .blue.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                } else {
+                    Color.clear
                 }
-            )
-            .clipShape(Circle())
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+    
+    private func createMockDate(for day: Int) -> Date {
+        let calendar = Calendar.current
+        let currentMonth = calendar.component(.month, from: entry.date)
+        let currentYear = calendar.component(.year, from: entry.date)
+        return calendar.date(from: DateComponents(year: currentYear, month: currentMonth, day: day)) ?? entry.date
     }
     
     private var dayGradient: LinearGradient {
@@ -521,32 +577,55 @@ struct LargeContentView: View {
     
     // MARK: - Calendar Day View (Same as ContentView, larger)
     private func calendarDayView(for day: Int, isCurrentMonth: Bool) -> some View {
-        Text("\(day)")
-            .font(.system(size: 16, weight: .medium, design: .rounded))
-            .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
-            .opacity(isCurrentMonth ? 1.0 : 0.4)
-            .frame(width: 28, height: 28)
-            .background(dayBackground(for: day, isCurrentMonth: isCurrentMonth))
-            .overlay(dayOverlay(for: day, isCurrentMonth: isCurrentMonth))
+        VStack(spacing: 3) {
+            Text("\(day)")
+                .font(.system(size: 15, weight: day == Calendar.current.component(.day, from: entry.date) ? .bold : .medium, design: .rounded))
+                .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
+                .opacity(isCurrentMonth ? 1.0 : 0.4)
+            
+            if isCurrentMonth {
+                let mockDate = createMockDate(for: day)
+                let weather = WidgetWeatherService.shared.getWeatherForDate(mockDate)
+                Image(systemName: weather.weatherIcon)
+                    .font(.system(size: 12))
+                    .foregroundColor(weather.weatherColor)
+            }
+        }
+        .frame(width: 28, height: 32)
+        .background(dayBackground(for: day, isCurrentMonth: isCurrentMonth))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(dayBorder(for: day, isCurrentMonth: isCurrentMonth))
+    }
+    
+    private func createMockDate(for day: Int) -> Date {
+        let calendar = Calendar.current
+        let currentMonth = calendar.component(.month, from: entry.date)
+        let currentYear = calendar.component(.year, from: entry.date)
+        return calendar.date(from: DateComponents(year: currentYear, month: currentMonth, day: day)) ?? entry.date
     }
     
     // MARK: - Day Background (Same as ContentView)
     private func dayBackground(for day: Int, isCurrentMonth: Bool) -> some View {
         Group {
             if day == Calendar.current.component(.day, from: entry.date) {
-                Circle()
-                    .fill(dayGradient)
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(
+                        LinearGradient(
+                            colors: [.blue, .blue.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
             } else {
-                // No background for non-today days
                 Color.clear
             }
         }
     }
     
-    // MARK: - Day Overlay (Same as ContentView)
-    private func dayOverlay(for day: Int, isCurrentMonth: Bool) -> some View {
-        Circle()
-            .stroke(isCurrentMonth ? Color.blue : Color.gray.opacity(0.3), lineWidth: isCurrentMonth ? 1.5 : 1.0)
+    // MARK: - Day Border (Same as ContentView)
+    private func dayBorder(for day: Int, isCurrentMonth: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 6)
+            .stroke(Color.clear, lineWidth: 0)
     }
 
     // MARK: - Bottom Info Section (Same as ContentView, larger)

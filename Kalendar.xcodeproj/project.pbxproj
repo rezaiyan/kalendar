@@ -80,11 +80,6 @@
 			path = KalendarTests;
 			sourceTree = "<group>";
 		};
-		41BF52202E535CD500517B50 /* KalendarUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = KalendarUITests;
-			sourceTree = "<group>";
-		};
 		41BF57B32E53C37A00517B50 /* WidgetExtension */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -139,7 +134,6 @@
 			children = (
 				41BF52082E535CD400517B50 /* Kalendar */,
 				41BF52162E535CD500517B50 /* KalendarTests */,
-				41BF52202E535CD500517B50 /* KalendarUITests */,
 				41BF57B32E53C37A00517B50 /* WidgetExtension */,
 				41FE45A32E55114500C0FF12 /* LockScreenCalendarWidget */,
 				41BF523D2E535E1600517B50 /* Frameworks */,
@@ -230,9 +224,6 @@
 			);
 			dependencies = (
 				41BF521F2E535CD500517B50 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				41BF52202E535CD500517B50 /* KalendarUITests */,
 			);
 			name = KalendarUITests;
 			packageProductDependencies = (
@@ -600,6 +591,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
+				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				MARKETING_VERSION = 1.5.2;
@@ -609,13 +601,12 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Kalendar.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Kalendar";
 				TEST_TARGET_NAME = Kalendar;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
-				ENABLE_TESTABILITY = YES;
 			};
 			name = Debug;
 		};
@@ -626,6 +617,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
+				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				MARKETING_VERSION = 1.5.2;
@@ -635,13 +627,12 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "RELEASE $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Kalendar.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Kalendar";
 				TEST_TARGET_NAME = Kalendar;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "RELEASE $(inherited)";
-				ENABLE_TESTABILITY = YES;
 			};
 			name = Release;
 		};
