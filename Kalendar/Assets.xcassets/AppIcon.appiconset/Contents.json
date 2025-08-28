@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "kalendar_full_AppStore_1024.png",
+      "filename" : "kalendar_icon_light_1024.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -13,19 +13,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "kalendar_full_AppStore_1024.png",
-      "idiom" : "universal",
-      "platform" : "ios",
-      "size" : "1024x1024"
-    },
-    {
-      "appearances" : [
-        {
-          "appearance" : "luminosity",
-          "value" : "tinted"
-        }
-      ],
-      "filename" : "kalendar_full_AppStore_1024.png",
+      "filename" : "kalendar_icon_dark_1024.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"

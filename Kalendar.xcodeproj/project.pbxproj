@@ -10,6 +10,12 @@
 		41BF57B12E53C37A00517B50 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41BF523E2E535E1600517B50 /* WidgetKit.framework */; };
 		41BF57B22E53C37A00517B50 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41BF52402E535E1600517B50 /* SwiftUI.framework */; };
 		41BF57C72E53C45C00517B50 /* WidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 41BF57B02E53C37A00517B50 /* WidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		41DDEC1E2E5B8850006C3DAE /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 41DDEC1D2E5B8850006C3DAE /* FirebaseAnalytics */; };
+		41DDEC202E5B8850006C3DAE /* FirebaseAnalyticsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 41DDEC1F2E5B8850006C3DAE /* FirebaseAnalyticsCore */; };
+		41DDEC222E5B8850006C3DAE /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = 41DDEC212E5B8850006C3DAE /* FirebaseAppCheck */; };
+		41DDEC242E5B8850006C3DAE /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 41DDEC232E5B8850006C3DAE /* FirebaseCrashlytics */; };
+		41DDEC262E5B8850006C3DAE /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 41DDEC252E5B8850006C3DAE /* FirebaseMessaging */; };
+		41DDEC282E5B8850006C3DAE /* FirebasePerformance in Frameworks */ = {isa = PBXBuildFile; productRef = 41DDEC272E5B8850006C3DAE /* FirebasePerformance */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -100,6 +106,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				41DDEC1E2E5B8850006C3DAE /* FirebaseAnalytics in Frameworks */,
+				41DDEC242E5B8850006C3DAE /* FirebaseCrashlytics in Frameworks */,
+				41DDEC282E5B8850006C3DAE /* FirebasePerformance in Frameworks */,
+				41DDEC262E5B8850006C3DAE /* FirebaseMessaging in Frameworks */,
+				41DDEC222E5B8850006C3DAE /* FirebaseAppCheck in Frameworks */,
+				41DDEC202E5B8850006C3DAE /* FirebaseAnalyticsCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -184,6 +196,12 @@
 			);
 			name = Kalendar;
 			packageProductDependencies = (
+				41DDEC1D2E5B8850006C3DAE /* FirebaseAnalytics */,
+				41DDEC1F2E5B8850006C3DAE /* FirebaseAnalyticsCore */,
+				41DDEC212E5B8850006C3DAE /* FirebaseAppCheck */,
+				41DDEC232E5B8850006C3DAE /* FirebaseCrashlytics */,
+				41DDEC252E5B8850006C3DAE /* FirebaseMessaging */,
+				41DDEC272E5B8850006C3DAE /* FirebasePerformance */,
 			);
 			productName = Kalendar;
 			productReference = 41BF52062E535CD400517B50 /* Kalendar.app */;
@@ -288,6 +306,9 @@
 				Base,
 			);
 			mainGroup = 41BF51FD2E535CD400517B50;
+			packageReferences = (
+				41DDEC1C2E5B8850006C3DAE /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 41BF52072E535CD400517B50 /* Products */;
 			projectDirPath = "";
@@ -485,6 +506,9 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				ENABLE_NS_ASSERTIONS = NO;
+				STRIP_INSTALLED_PRODUCT = NO;
+				COPY_PHASE_STRIP = NO;
+				STRIP_STYLE = non-global;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -505,6 +529,9 @@
 				SWIFT_COMPILATION_MODE = wholemodule;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
+				OTHER_LDFLAGS = "$(inherited) -ObjC";
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 			};
 			name = Release;
 		};
@@ -513,14 +540,21 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Kalendar/Kalendar.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionAllowsInsecureHTTPLoads = NO;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionMinimumTLSVersion = TLSv1.2;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionRequiresForwardSecrecy = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSIncludesSubdomains = YES;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Kalendar needs location access to provide accurate weather information for your area.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Kalendar needs location access to provide accurate weather information for your area.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -528,18 +562,12 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Kalendar needs location access to provide accurate weather information for your area.";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Kalendar needs location access to provide accurate weather information for your area.";
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionAllowsInsecureHTTPLoads = NO;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionMinimumTLSVersion = "TLSv1.2";
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionRequiresForwardSecrecy = YES;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSIncludesSubdomains = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.8.0;
+				MARKETING_VERSION = 1.9.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.Kalendar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
@@ -549,6 +577,12 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				STRIP_INSTALLED_PRODUCT = NO;
+				COPY_PHASE_STRIP = NO;
+				STRIP_STYLE = non-global;
+				OTHER_LDFLAGS = "$(inherited) -ObjC";
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 			};
 			name = Debug;
 		};
@@ -557,14 +591,21 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Kalendar/Kalendar.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionAllowsInsecureHTTPLoads = NO;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionMinimumTLSVersion = TLSv1.2;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionRequiresForwardSecrecy = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSIncludesSubdomains = YES;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Kalendar needs location access to provide accurate weather information for your area.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Kalendar needs location access to provide accurate weather information for your area.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -572,18 +613,12 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Kalendar needs location access to provide accurate weather information for your area.";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Kalendar needs location access to provide accurate weather information for your area.";
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionAllowsInsecureHTTPLoads = NO;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionMinimumTLSVersion = "TLSv1.2";
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionRequiresForwardSecrecy = YES;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSIncludesSubdomains = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.8.0;
+				MARKETING_VERSION = 1.9.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.Kalendar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
@@ -593,6 +628,19 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				STRIP_INSTALLED_PRODUCT = NO;
+				COPY_PHASE_STRIP = NO;
+				STRIP_STYLE = non-global;
+				OTHER_LDFLAGS = "$(inherited) -ObjC";
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
+				SWIFT_SUPPRESS_WARNINGS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_MODULE_INTERFACE = YES;
+				SWIFT_EMIT_MODULE_INTERFACE_FOR_MODULE = YES;
+				SWIFT_EMIT_MODULE_INTERFACE_FOR_FRAMEWORKS = YES;
+				SWIFT_EMIT_MODULE_INTERFACE_FOR_SWIFT_MODULES = YES;
 			};
 			name = Release;
 		};
@@ -601,12 +649,12 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				MARKETING_VERSION = 1.8.0;
+				MARKETING_VERSION = 1.9.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.KalendarTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
@@ -627,12 +675,12 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				MARKETING_VERSION = 1.8.0;
+				MARKETING_VERSION = 1.9.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.KalendarTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";
@@ -652,11 +700,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				MARKETING_VERSION = 1.8.0;
+				MARKETING_VERSION = 1.9.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.KalendarUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator ipados ipadosimulator";
@@ -674,11 +722,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
-				MARKETING_VERSION = 1.8.0;
+				MARKETING_VERSION = 1.9.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.KalendarUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator ipados ipadosimulator";
@@ -698,7 +746,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = WidgetExtension/Info.plist;
@@ -710,7 +758,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.8.0;
+				MARKETING_VERSION = 1.9.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.Kalendar.WidgetExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = NO;
@@ -726,7 +774,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = VFCFJC7Y5J;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = WidgetExtension/Info.plist;
@@ -738,7 +786,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.8.0;
+				MARKETING_VERSION = 1.9.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.alirezaiyan.Kalendar.WidgetExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = NO;
@@ -797,6 +845,50 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		41DDEC1C2E5B8850006C3DAE /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		41DDEC1D2E5B8850006C3DAE /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 41DDEC1C2E5B8850006C3DAE /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		41DDEC1F2E5B8850006C3DAE /* FirebaseAnalyticsCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 41DDEC1C2E5B8850006C3DAE /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalyticsCore;
+		};
+		41DDEC212E5B8850006C3DAE /* FirebaseAppCheck */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 41DDEC1C2E5B8850006C3DAE /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAppCheck;
+		};
+		41DDEC232E5B8850006C3DAE /* FirebaseCrashlytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 41DDEC1C2E5B8850006C3DAE /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCrashlytics;
+		};
+		41DDEC252E5B8850006C3DAE /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 41DDEC1C2E5B8850006C3DAE /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
+		41DDEC272E5B8850006C3DAE /* FirebasePerformance */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 41DDEC1C2E5B8850006C3DAE /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebasePerformance;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 41BF51FE2E535CD400517B50 /* Project object */;
 }

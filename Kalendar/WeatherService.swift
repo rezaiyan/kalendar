@@ -47,10 +47,22 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
     private let locationManager = CLLocationManager()
     var currentLocation: CLLocation?
     
+    // Background queue for network operations
+    private let networkQueue = DispatchQueue(label: "com.kalendar.weather.network", qos: .userInitiated)
+    
+    // MARK: - Caching Strategy
+    private let userDefaults = UserDefaults.standard
+    private let weatherCacheKey = "WeatherDataCache"
+    private let lastFetchDateKey = "LastWeatherFetchDate"
+    private let cacheExpirationHours: TimeInterval = 6 * 3600 // 6 hours
+    
     override init() {
         super.init()
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        
+        // Load cached weather data on initialization
+        loadCachedWeatherData()
         
         // For testing in simulator, set a mock location (San Francisco)
         #if targetEnvironment(simulator)
@@ -148,92 +160,6 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
                 }
             }
         }
-    }
-    
-    func fetchWeatherForDates(_ dates: [Date]) async {
-        guard let location = currentLocation else {
-            // If no location, try to request it and show a helpful message
-            print("🌐 [NETWORK] ❌ No location available, requesting location access")
-            requestLocation()
-            error = "Location not available. Please allow location access in Settings."
-            return
-        }
-        
-        print("🌐 [NETWORK] 🚀 Starting weather fetch for \(dates.count) dates")
-        print("🌐 [NETWORK] 📍 Using location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
-        print("🌐 [NETWORK] 📅 Dates to fetch: \(dates.map { formatDate($0) })")
-        
-        isLoading = true
-        error = nil
-        
-        let overallStartTime = Date()
-        var successfulFetches = 0
-        var failedFetches = 0
-        
-        do {
-            for (index, date) in dates.enumerated() {
-                let dateString = formatDate(date)
-                print("🌐 [NETWORK] 📡 [\(index + 1)/\(dates.count)] Fetching weather for \(dateString)")
-                
-                // Try to fetch weather with retry (enhanced for TestFlight)
-                var weather: WeatherInfo?
-                var lastError: Error?
-                
-                #if DEBUG
-                let maxAttempts = 2 // Debug build
-                #else
-                let maxAttempts = 3 // More retries for TestFlight
-                #endif
-                for attempt in 1...maxAttempts {
-                    do {
-                        if attempt > 1 {
-                            print("🌐 [NETWORK] 🔄 Retry attempt \(attempt)/\(maxAttempts) for \(dateString)")
-                        }
-                        
-                        weather = try await fetchWeatherForDate(date, at: location)
-                        break
-                    } catch {
-                        lastError = error
-                        if attempt < maxAttempts {
-                            #if DEBUG
-                            let waitTime = 1.0 // Debug build
-                            #else
-                            let waitTime = 2.0 // Longer wait for TestFlight
-                            #endif
-                            print("🌐 [NETWORK] ⏳ Waiting \(waitTime) seconds before retry for \(dateString)")
-                            try await Task.sleep(nanoseconds: UInt64(waitTime * 1_000_000_000))
-                        }
-                    }
-                }
-                
-                if let weather = weather {
-                    weatherData[dateString] = weather
-                    successfulFetches += 1
-                    print("🌐 [NETWORK] ✅ Successfully stored weather for \(dateString)")
-                    
-                    // Save to shared container for widget synchronization
-                    saveWeatherDataToSharedContainer()
-                } else if let lastError = lastError {
-                    failedFetches += 1
-                    print("🌐 [NETWORK] ❌ Failed to fetch weather for \(dateString) after all attempts")
-                    print("🌐 [NETWORK] 🔍 Final error: \(lastError.localizedDescription)")
-                }
-            }
-        } catch {
-            print("🌐 [NETWORK] 💥 Critical error in weather fetching: \(error.localizedDescription)")
-            self.error = "Weather error: \(error.localizedDescription)"
-        }
-        
-        let overallEndTime = Date()
-        let totalDuration = overallEndTime.timeIntervalSince(overallStartTime)
-        
-        print("🌐 [NETWORK] 🏁 Weather fetch completed:")
-        print("   - Total duration: \(String(format: "%.2f", totalDuration))s")
-        print("   - Successful fetches: \(successfulFetches)/\(dates.count)")
-        print("   - Failed fetches: \(failedFetches)/\(dates.count)")
-        print("   - Success rate: \(String(format: "%.1f", Double(successfulFetches) / Double(dates.count) * 100))%")
-        
-        isLoading = false
     }
     
     private func fetchWeatherForDate(_ date: Date, at location: CLLocation) async throws -> WeatherInfo {
@@ -396,6 +322,9 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
         }
         
         SharedWeatherService.shared.saveWeatherData(sharedWeatherData)
+        
+        // Also save to local cache for better performance
+        saveWeatherDataToCache()
     }
     
     // MARK: - TestFlight Weather Initialization
@@ -439,21 +368,167 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
             return
         }
         
+        // Check if we need to fetch the entire month or just this date
+        let calendar = Calendar.current
+        let today = Date()
+        
+        // If the selected date is in the current month and we don't have much data,
+        // fetch the entire month for better performance
+        if calendar.isDate(date, equalTo: today, toGranularity: .month) && weatherData.count < 10 {
+            print("🌐 [WEATHER] 🔄 Fetching entire month for better performance")
+            await fetchWeatherForCurrentMonth()
+        } else {
+            // Fetch just this specific date
+            do {
+                let weatherInfo = try await fetchWeatherForDate(date, at: location)
+                await MainActor.run {
+                    weatherData[dateString] = weatherInfo
+                    error = nil
+                    print("🌐 [WEATHER] ✅ Successfully fetched weather for \(dateString)")
+                    
+                    // Save to shared container for widget synchronization
+                    saveWeatherDataToSharedContainer()
+                }
+            } catch {
+                await MainActor.run {
+                    self.error = "Failed to fetch weather for \(dateString): \(error.localizedDescription)"
+                    print("🌐 [WEATHER] ❌ Failed to fetch weather for \(dateString): \(error)")
+                }
+            }
+        }
+    }
+    
+    // MARK: - Bulk Month Weather Fetching (Single API Call)
+    private func fetchWeatherForMonth(startDate: Date, endDate: Date, at location: CLLocation) async throws -> [String: WeatherInfo] {
+        let baseURL = "https://api.open-meteo.com/v1/forecast"
+        let latitude = location.coordinate.latitude
+        let longitude = location.coordinate.longitude
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let startDateString = dateFormatter.string(from: startDate)
+        let endDateString = dateFormatter.string(from: endDate)
+        
+        let urlString = "\(baseURL)?latitude=\(latitude)&longitude=\(longitude)&daily=weather_code,temperature_2m_max,temperature_2m_min,relative_humidity_2m_max,wind_speed_10m_max&timezone=auto&start_date=\(startDateString)&end_date=\(endDateString)"
+        
+        guard let url = URL(string: urlString) else {
+            print("🌐 [NETWORK] ❌ Invalid URL: \(urlString)")
+            throw WeatherError.invalidURL
+        }
+        
+        print("🌐 [NETWORK] 📡 Starting BULK month request:")
+        print("🌐 [NETWORK] 📍 Location: \(latitude), \(longitude)")
+        print("🌐 [NETWORK] 📅 Date range: \(startDateString) to \(endDateString)")
+        print("🌐 [NETWORK] 🔗 URL: \(urlString)")
+        
+        let startTime = Date()
+        
+        // Create a URLSession with timeout and TestFlight optimizations
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30.0 // Increased timeout for bulk request
+        config.timeoutIntervalForResource = 45.0 // Increased total timeout for bulk request
+        
+        // TestFlight-specific network optimizations
+        #if !DEBUG
+        config.waitsForConnectivity = true
+        config.allowsCellularAccess = true
+        print("🌐 [NETWORK] 🚀 TestFlight network optimizations enabled")
+        #endif
+        
+        let session = URLSession(configuration: config)
+        
         do {
-            let weatherInfo = try await fetchWeatherForDate(date, at: location)
-            await MainActor.run {
-                weatherData[dateString] = weatherInfo
-                error = nil
-                print("🌐 [WEATHER] ✅ Successfully fetched weather for \(dateString)")
+            let (data, httpResponse) = try await session.data(from: url)
+            
+            let endTime = Date()
+            let duration = endTime.timeIntervalSince(startTime)
+            
+            // Check HTTP response
+            if let httpResponse = httpResponse as? HTTPURLResponse {
+                print("🌐 [NETWORK] 📊 HTTP Status: \(httpResponse.statusCode)")
+                print("🌐 [NETWORK] ⏱️ Bulk request duration: \(String(format: "%.2f", duration))s")
+                print("🌐 [NETWORK] 📦 Response size: \(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file))")
                 
-                // Save to shared container for widget synchronization
-                saveWeatherDataToSharedContainer()
+                guard httpResponse.statusCode == 200 else {
+                    print("🌐 [NETWORK] ❌ HTTP Error: \(httpResponse.statusCode)")
+                    if let responseHeaders = httpResponse.allHeaderFields as? [String: String] {
+                        print("🌐 [NETWORK] 📋 Response headers: \(responseHeaders)")
+                    }
+                    throw WeatherError.networkError
+                }
             }
+            
+            print("🌐 [NETWORK] ✅ Bulk response received successfully")
+            
+            let response = try JSONDecoder().decode(WeatherResponse.self, from: data)
+            
+            // The API returns arrays for all dates, so we need to process each element
+            guard !response.daily.time.isEmpty,
+                  !response.daily.weather_code.isEmpty,
+                  !response.daily.temperature_2m_max.isEmpty,
+                  !response.daily.temperature_2m_min.isEmpty,
+                  !response.daily.relative_humidity_2m_max.isEmpty,
+                  !response.daily.wind_speed_10m_max.isEmpty else {
+                print("🌐 [NETWORK] ❌ Empty arrays in bulk response")
+                print("🌐 [NETWORK] 📄 Response structure: \(response)")
+                throw WeatherError.noData
+            }
+            
+            // Process all dates from the bulk response
+            var monthWeatherData: [String: WeatherInfo] = [:]
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            
+            for (index, timeString) in response.daily.time.enumerated() {
+                guard index < response.daily.weather_code.count,
+                      index < response.daily.temperature_2m_max.count,
+                      index < response.daily.temperature_2m_min.count,
+                      index < response.daily.relative_humidity_2m_max.count,
+                      index < response.daily.wind_speed_10m_max.count else {
+                    print("🌐 [NETWORK] ⚠️ Index out of bounds for date \(timeString)")
+                    continue
+                }
+                
+                // Parse the date string
+                guard let date = dateFormatter.date(from: timeString) else {
+                    print("🌐 [NETWORK] ⚠️ Could not parse date: \(timeString)")
+                    continue
+                }
+                
+                let weatherInfo = WeatherInfo(
+                    weatherCode: response.daily.weather_code[index],
+                    temperature: response.daily.temperature_2m_max[index],
+                    minTemp: response.daily.temperature_2m_min[index],
+                    maxTemp: response.daily.temperature_2m_max[index],
+                    humidity: response.daily.relative_humidity_2m_max[index],
+                    windSpeed: response.daily.wind_speed_10m_max[index],
+                    date: date
+                )
+                
+                monthWeatherData[timeString] = weatherInfo
+            }
+            
+            print("🌐 [NETWORK] 🌤️ Bulk weather data processed successfully:")
+            print("   - Total dates processed: \(monthWeatherData.count)")
+            print("   - Date range: \(monthWeatherData.keys.sorted().first ?? "N/A") to \(monthWeatherData.keys.sorted().last ?? "N/A")")
+            
+            return monthWeatherData
+            
+        } catch let decodingError as DecodingError {
+            print("🌐 [NETWORK] ❌ JSON Decoding Error in bulk request:")
+            let errorDescription = String(describing: decodingError)
+            print("   - Error details: \(errorDescription)")
+            throw WeatherError.networkError
         } catch {
-            await MainActor.run {
-                self.error = "Failed to fetch weather for \(dateString): \(error.localizedDescription)"
-                print("🌐 [WEATHER] ❌ Failed to fetch weather for \(dateString): \(error)")
+            print("🌐 [NETWORK] ❌ Network Error in bulk request: \(error.localizedDescription)")
+            print("🌐 [NETWORK] 🔍 Error type: \(type(of: error))")
+            if let nsError = error as NSError? {
+                print("🌐 [NETWORK] 📊 NSError details:")
+                print("   - Domain: \(nsError.domain)")
+                print("   - Code: \(nsError.code)")
+                print("   - User info: \(nsError.userInfo)")
             }
+            throw WeatherError.networkError
         }
     }
     
@@ -555,9 +630,20 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
         }
     }
     
+    // MARK: - Smart Progressive Weather Loading
     func fetchWeatherForCurrentMonth() async {
         let calendar = Calendar.current
         let today = Date()
+        
+        // Check if we have recent cached data
+        if !weatherData.isEmpty {
+            let lastFetchDate = userDefaults.object(forKey: lastFetchDateKey) as? Date
+            if let lastFetch = lastFetchDate,
+               Date().timeIntervalSince(lastFetch) < cacheExpirationHours {
+                print("🌐 [WEATHER] ✅ Using cached weather data (last updated: \(lastFetch))")
+                return
+            }
+        }
         
         // Get weather for the entire current month
         guard let monthInterval = calendar.dateInterval(of: .month, for: today) else {
@@ -568,21 +654,197 @@ class WeatherService: NSObject, ObservableObject, @preconcurrency CLLocationMana
         let startOfMonth = monthInterval.start
         let endOfMonth = monthInterval.end
         
-        // Create array of all dates in the month
-        var dates: [Date] = []
-        var currentDate = startOfMonth
-        
-        while currentDate < endOfMonth {
-            dates.append(currentDate)
-            currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
-        }
-        
-        print("🌐 [WEATHER] 📅 Fetching current month weather:")
+        print("🌐 [WEATHER] 📅 Smart bulk loading for current month:")
         print("   - Month: \(formatDate(today))")
         print("   - Date range: \(formatDate(startOfMonth)) to \(formatDate(endOfMonth))")
-        print("   - Total dates: \(dates.count)")
         
-        await fetchWeatherForDates(dates)
+        // Use bulk month fetching instead of individual date calls
+        guard let location = currentLocation else {
+            print("🌐 [WEATHER] ❌ No location available for weather fetch")
+            requestLocation()
+            error = "Location not available. Please allow location access in Settings."
+            return
+        }
+        
+        do {
+            print("🌐 [WEATHER] 🚀 Fetching entire month in single API call...")
+            let monthWeatherData = try await fetchWeatherForMonth(startDate: startOfMonth, endDate: endOfMonth, at: location)
+            
+            // Update weather data on main thread
+            await MainActor.run {
+                self.weatherData = monthWeatherData
+                self.error = nil
+                self.isLoading = false
+            }
+            
+            print("🌐 [WEATHER] ✅ Month weather data loaded successfully: \(monthWeatherData.count) dates")
+            
+            // Save to shared container and cache
+            await MainActor.run {
+                self.saveWeatherDataToSharedContainer()
+            }
+            
+        } catch {
+            await MainActor.run {
+                self.error = "Failed to fetch month weather: \(error.localizedDescription)"
+                self.isLoading = false
+                print("🌐 [WEATHER] ❌ Failed to fetch month weather: \(error)")
+            }
+        }
+    }
+    
+    // MARK: - Essential Dates Strategy
+    private func getEssentialDates(from allDates: [Date], today: Date) -> [Date] {
+        let calendar = Calendar.current
+        let todayComponents = calendar.dateComponents([.year, .month, .day], from: today)
+        
+        // Essential dates: today + next 3 days
+        var essentialDates: [Date] = []
+        
+        // Add today
+        if let todayDate = calendar.date(from: todayComponents) {
+            essentialDates.append(todayDate)
+        }
+        
+        // Add next 3 days
+        for dayOffset in 1...3 {
+            if let nextDate = calendar.date(byAdding: .day, value: dayOffset, to: today) {
+                essentialDates.append(nextDate)
+            }
+        }
+        
+        // Filter to only include dates that exist in the month
+        return essentialDates.filter { allDates.contains($0) }
+    }
+    
+    // MARK: - Progressive Loading with User Feedback
+    func fetchWeatherForDates(_ dates: [Date]) async {
+        guard let location = currentLocation else {
+            // If no location, try to request it and show a helpful message
+            print("🌐 [NETWORK] ❌ No location available, requesting location access")
+            requestLocation()
+            error = "Location not available. Please allow location access in Settings."
+            return
+        }
+        
+        print("🌐 [NETWORK] 🚀 Starting progressive weather fetch for \(dates.count) dates")
+        print("🌐 [NETWORK] 📍 Using location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+        print("🌐 [NETWORK] 📅 Dates to fetch: \(dates.map { formatDate($0) })")
+        
+        // Update UI on main thread
+        await MainActor.run {
+            isLoading = true
+            error = nil
+        }
+        
+        let overallStartTime = Date()
+        var successfulFetches = 0
+        var failedFetches = 0
+        
+        // Create concurrent weather fetching using async let
+        let weatherTasks = dates.map { date in
+            Task {
+                let dateString = self.formatDate(date)
+                print("🌐 [NETWORK] 📡 Fetching weather for \(dateString)")
+                
+                // Try to fetch weather with retry (enhanced for TestFlight)
+                var weather: WeatherInfo?
+                
+                #if DEBUG
+                let maxAttempts = 2 // Debug build
+                #else
+                let maxAttempts = 3 // More retries for TestFlight
+                #endif
+                
+                for attempt in 1...maxAttempts {
+                    do {
+                        if attempt > 1 {
+                            print("🌐 [NETWORK] 🔄 Retry attempt \(attempt)/\(maxAttempts) for \(dateString)")
+                        }
+                        
+                        weather = try await self.fetchWeatherForDate(date, at: location)
+                        break
+                    } catch {
+                        if attempt < maxAttempts {
+                            #if DEBUG
+                            let waitTime = 1.0 // Debug build
+                            #else
+                            let waitTime = 2.0 // Longer wait for TestFlight
+                            #endif
+                            print("🌐 [NETWORK] ⏳ Waiting \(waitTime) seconds before retry for \(dateString)")
+                            try? await Task.sleep(nanoseconds: UInt64(waitTime * 1_000_000_000))
+                        }
+                    }
+                }
+                
+                return (dateString, weather)
+            }
+        }
+        
+        // Wait for all tasks to complete and process results
+        for task in weatherTasks {
+            let (dateString, weather) = await task.value
+            if let weather = weather {
+                await MainActor.run {
+                    self.weatherData[dateString] = weather
+                }
+                successfulFetches += 1
+                print("🌐 [NETWORK] ✅ Successfully stored weather for \(dateString)")
+                
+                // Save to shared container for widget synchronization
+                await MainActor.run {
+                    self.saveWeatherDataToSharedContainer()
+                }
+            } else {
+                failedFetches += 1
+                print("🌐 [NETWORK] ❌ Failed to fetch weather for \(dateString)")
+            }
+        }
+        
+        let overallEndTime = Date()
+        let totalDuration = overallEndTime.timeIntervalSince(overallStartTime)
+        
+        print("🌐 [NETWORK] 🏁 Weather fetch completed:")
+        print("   - Total duration: \(String(format: "%.2f", totalDuration))s")
+        print("   - Successful fetches: \(successfulFetches)/\(dates.count)")
+        print("   - Failed fetches: \(failedFetches)/\(dates.count)")
+        print("   - Success rate: \(String(format: "%.1f", Double(successfulFetches) / Double(dates.count) * 100))%")
+        
+        // Update UI on main thread
+        await MainActor.run {
+            isLoading = false
+        }
+    }
+    
+    // MARK: - Caching
+    private func loadCachedWeatherData() {
+        guard let cachedData = userDefaults.object(forKey: weatherCacheKey) as? Data,
+              let cachedWeatherData = try? JSONDecoder().decode([String: WeatherInfo].self, from: cachedData) else {
+            print("🌐 [CACHE] No cached weather data found.")
+            return
+        }
+        
+        let lastFetchDate = userDefaults.object(forKey: lastFetchDateKey) as? Date
+        guard let lastFetch = lastFetchDate,
+              Date().timeIntervalSince(lastFetch) < cacheExpirationHours else {
+            print("🌐 [CACHE] Cached weather data expired or not found. Fetching fresh data.")
+            return
+        }
+        
+        weatherData = cachedWeatherData
+        print("🌐 [CACHE] Loaded \(weatherData.count) weather entries from cache.")
+    }
+    
+    private func saveWeatherDataToCache() {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        if let encoded = try? encoder.encode(weatherData) {
+            userDefaults.set(encoded, forKey: weatherCacheKey)
+            userDefaults.set(Date(), forKey: lastFetchDateKey)
+            print("🌐 [CACHE] Weather data saved to cache. Total entries: \(weatherData.count)")
+        } else {
+            print("🌐 [CACHE] Failed to save weather data to cache.")
+        }
     }
 }
 
@@ -600,7 +862,7 @@ struct DailyData: Codable {
     let wind_speed_10m_max: [Double]
 }
 
-struct WeatherInfo {
+struct WeatherInfo: Codable {
     let weatherCode: Int
     let temperature: Double
     let minTemp: Double

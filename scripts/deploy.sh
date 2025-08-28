@@ -37,6 +37,7 @@ ARCHIVE_PATH=""
 EXPORT_PATH=""
 EXPORT_METHOD="development"
 VERBOSE=false
+VERIFY_DSYMS=true
 
 # Print functions
 print_error() {
@@ -58,6 +59,63 @@ print_status() {
 print_verbose() {
     if [[ "$VERBOSE" == "true" ]]; then
         echo -e "${BLUE}[VERBOSE]${NC} $1"
+    fi
+}
+
+# Verify dSYMs for Firebase frameworks
+verify_dsyms() {
+    local archive_path="$1"
+    
+    if [[ "$VERIFY_DSYMS" != "true" ]]; then
+        print_status "Skipping dSYM verification"
+        return 0
+    fi
+    
+    print_status "Verifying dSYMs for Firebase frameworks..."
+    
+    local dsyms_dir="$archive_path/dSYMs"
+    if [[ ! -d "$dsyms_dir" ]]; then
+        print_error "dSYMs directory not found: $dsyms_dir"
+        return 1
+    fi
+    
+    # Firebase frameworks that need dSYMs
+    local firebase_frameworks=(
+        "FirebaseAnalytics"
+        "GoogleAdsOnDeviceConversion"
+        "GoogleAppMeasurement"
+        "GoogleAppMeasurementIdentitySupport"
+    )
+    
+    local missing_dsyms=()
+    
+    for framework in "${firebase_frameworks[@]}"; do
+        local dsym_path="$dsyms_dir/$framework.framework.dSYM"
+        if [[ -d "$dsym_path" ]]; then
+            print_success "✅ $framework dSYM found"
+            
+            # Verify dSYM contains UUIDs
+            if command -v dwarfdump >/dev/null 2>&1; then
+                local uuid_count=$(dwarfdump --uuid "$dsym_path" 2>/dev/null | grep -c "UUID:" || echo "0")
+                if [[ "$uuid_count" -gt 0 ]]; then
+                    print_verbose "   Contains $uuid_count UUID(s)"
+                else
+                    print_warning "   No UUIDs found in dSYM"
+                fi
+            fi
+        else
+            print_warning "⚠️  $framework dSYM missing"
+            missing_dsyms+=("$framework")
+        fi
+    done
+    
+    if [[ ${#missing_dsyms[@]} -gt 0 ]]; then
+        print_warning "Missing dSYMs for: ${missing_dsyms[*]}"
+        print_status "Consider running the dSYM fix script before archiving"
+        return 1
+    else
+        print_success "All Firebase dSYMs verified successfully!"
+        return 0
     fi
 }
 

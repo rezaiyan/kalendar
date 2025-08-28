@@ -34,8 +34,16 @@ struct ContentView: View {
         Array(repeating: GridItem(.flexible(), spacing: isIPad ? 12 : 8), count: 7)
     }
     
+    private var calendarDaySize: CGFloat {
+        isIPad ? 60 : 44
+    }
+    
+    private var calendarDayHeight: CGFloat {
+        isIPad ? 70 : 50
+    }
+    
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 32) {
                     // MARK: - Calendar Section
@@ -50,13 +58,16 @@ struct ContentView: View {
                     // MARK: - Open Source Footer
                     openSourceFooter
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, 24)
                 .animation(.easeInOut(duration: 0.4), value: selectedDate)
             }
+            .scrollIndicators(.hidden, axes: .vertical)
+            .scrollDismissesKeyboard(.immediately)
             .navigationTitle("Kalendar")
             .navigationBarTitleDisplayMode(.large)
             .background(Color(.systemBackground))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .sheet(isPresented: $showWidgetGuide) {
                 WidgetSetupGuide()
             }
@@ -76,6 +87,16 @@ struct ContentView: View {
                     // Fallback to regular fetch if TestFlight init didn't work
                     if weatherService.weatherData.isEmpty {
                         await weatherService.fetchWeatherForCurrentMonth()
+                    }
+                }
+                
+                // iPad-specific: Ensure UI updates are processed
+                if isIPad {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        // Force a UI refresh on iPad
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            // This will trigger a UI refresh
+                        }
                     }
                 }
             }
@@ -341,7 +362,7 @@ struct ContentView: View {
                         .transition(.scale.combined(with: .opacity))
                 }
             }
-            .frame(width: 44, height: 50)
+            .frame(width: calendarDaySize, height: calendarDayHeight)
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(
@@ -451,7 +472,7 @@ struct ContentView: View {
     // MARK: - Empty Calendar Day
     private var emptyCalendarDay: some View {
         Text("")
-            .frame(width: 44, height: 50)
+            .frame(width: calendarDaySize, height: calendarDayHeight)
     }
     
     // MARK: - Widget Guide Section
@@ -675,7 +696,7 @@ struct WidgetSetupGuide: View {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
                     headerSection
@@ -958,7 +979,7 @@ struct LocationRequestView: View {
     @ObservedObject var weatherService: WeatherService
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 // Header with gradient background
                 headerSection

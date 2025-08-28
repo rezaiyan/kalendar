@@ -8,7 +8,13 @@
     <false/>
     <key>uploadSymbols</key>
     <true/>
+    <key>uploadBitcode</key>
+    <false/>
     <key>compileBitcode</key>
+    <false/>
+    <key>stripSwiftSymbols</key>
+    <false/>
+    <key>stripLinkedProduct</key>
     <false/>
     <key>signingStyle</key>
     <string>automatic</string>
