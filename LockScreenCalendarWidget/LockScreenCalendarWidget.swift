@@ -124,6 +124,7 @@ struct CalendarDay: Identifiable, Hashable {
     let day: Int
     let isCurrentMonth: Bool
     let monthType: MonthType
+    let actualDate: Date // Add the actual date for proper comparison
     
     enum MonthType {
         case previous
@@ -322,13 +323,23 @@ struct LockScreenTimelineProvider: TimelineProvider {
             let startDay = daysInPreviousMonth - mondayBasedWeekday + 1
             
             for day in startDay...daysInPreviousMonth {
-                allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .previous))
+                let actualDate = calendar.date(from: DateComponents(
+                    year: calendar.component(.year, from: previousMonth),
+                    month: calendar.component(.month, from: previousMonth),
+                    day: day
+                )) ?? Date()
+                allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .previous, actualDate: actualDate))
             }
         }
         
         // Current month days
         for day in 1...daysInMonth {
-            allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: true, monthType: .current))
+            let actualDate = calendar.date(from: DateComponents(
+                year: calendar.component(.year, from: date),
+                month: calendar.component(.month, from: date),
+                day: day
+            )) ?? Date()
+            allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: true, monthType: .current, actualDate: actualDate))
         }
         
         // Next month days (to complete the grid)
@@ -343,7 +354,12 @@ struct LockScreenTimelineProvider: TimelineProvider {
             let maxDaysToShow = min(remainingDays, daysInNextMonth)
             
             for day in 1...maxDaysToShow {
-                allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .next))
+                let actualDate = calendar.date(from: DateComponents(
+                    year: calendar.component(.year, from: nextMonth),
+                    month: calendar.component(.month, from: nextMonth),
+                    day: day
+                )) ?? Date()
+                allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .next, actualDate: actualDate))
             }
         }
         
@@ -352,20 +368,39 @@ struct LockScreenTimelineProvider: TimelineProvider {
     
     private func createSampleCalendarDays() -> [CalendarDay] {
         var sampleDays: [CalendarDay] = []
+        let now = Date()
+        let calendar = Calendar.current
         
         // Previous month days
+        let previousMonth = calendar.date(byAdding: .month, value: -1, to: now) ?? now
         for day in [28, 29, 30, 31] {
-            sampleDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .previous))
+            let actualDate = calendar.date(from: DateComponents(
+                year: calendar.component(.year, from: previousMonth),
+                month: calendar.component(.month, from: previousMonth),
+                day: day
+            )) ?? Date()
+            sampleDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .previous, actualDate: actualDate))
         }
         
         // Current month days
         for day in 1...31 {
-            sampleDays.append(CalendarDay(day: day, isCurrentMonth: true, monthType: .current))
+            let actualDate = calendar.date(from: DateComponents(
+                year: calendar.component(.year, from: now),
+                month: calendar.component(.month, from: now),
+                day: day
+            )) ?? Date()
+            sampleDays.append(CalendarDay(day: day, isCurrentMonth: true, monthType: .current, actualDate: actualDate))
         }
         
         // Next month days
+        let nextMonth = calendar.date(byAdding: .month, value: 1, to: now) ?? now
         for day in [1, 2, 3, 4, 5, 6, 7] {
-            sampleDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .next))
+            let actualDate = calendar.date(from: DateComponents(
+                year: calendar.component(.year, from: nextMonth),
+                month: calendar.component(.month, from: nextMonth),
+                day: day
+            )) ?? Date()
+            sampleDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .next, actualDate: actualDate))
         }
         
         return sampleDays
@@ -663,8 +698,8 @@ struct LockScreenMediumView: View {
     private func miniDayView(for day: Int, isCurrentMonth: Bool) -> some View {
         VStack(spacing: 0) {
             Text("\(day)")
-                .font(.system(size: 8, weight: day == Calendar.current.component(.day, from: entry.date) ? .bold : .medium, design: .rounded))
-                .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
+                .font(.system(size: 8, weight: isToday(day, isCurrentMonth: isCurrentMonth) ? .bold : .medium, design: .rounded))
+                .foregroundColor(isToday(day, isCurrentMonth: isCurrentMonth) ? .white : (isCurrentMonth ? .primary : .secondary))
                 .opacity(isCurrentMonth ? 1.0 : 0.4)
             
             if isCurrentMonth {
@@ -673,13 +708,13 @@ struct LockScreenMediumView: View {
                 Image(systemName: weather.weatherIcon)
                     .font(.system(size: 4, weight: .medium))
                     .foregroundColor(weather.weatherColor)
-                    .opacity(day == Calendar.current.component(.day, from: entry.date) ? 0.9 : 0.8)
+                    .opacity(isToday(day, isCurrentMonth: isCurrentMonth) ? 0.9 : 0.8)
             }
         }
         .frame(width: 14, height: 16)
         .background(
             Group {
-                if day == Calendar.current.component(.day, from: entry.date) {
+                if isToday(day, isCurrentMonth: isCurrentMonth) {
                     RoundedRectangle(cornerRadius: 3)
                         .fill(
                             LinearGradient(
@@ -694,6 +729,19 @@ struct LockScreenMediumView: View {
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 3))
+    }
+    
+    private func isToday(_ day: Int, isCurrentMonth: Bool) -> Bool {
+        // Only highlight if it's the current month and the current day
+        guard isCurrentMonth else { return false }
+        
+        let calendar = Calendar.current
+        let today = Date()
+        let currentMonth = calendar.component(.month, from: today)
+        let currentYear = calendar.component(.year, from: today)
+        let currentDay = calendar.component(.day, from: today)
+        
+        return day == currentDay
     }
     
     private func createMockDate(for day: Int) -> Date {
@@ -774,6 +822,11 @@ struct LockScreenCalendarWidget: Widget {
 #Preview(as: .systemSmall) {
     LockScreenCalendarWidget()
 } timeline: {
+    let calendar = Calendar.current
+    let now = Date()
+    let previousMonth = calendar.date(byAdding: .month, value: -1, to: now) ?? now
+    let nextMonth = calendar.date(byAdding: .month, value: 1, to: now) ?? now
+    
     CalendarEntry(
         date: Date(),
         selectedDate: Date(),
@@ -781,48 +834,48 @@ struct LockScreenCalendarWidget: Widget {
         currentDayName: "Monday",
         currentTime: "14:30",
         allCalendarDays: [
-            CalendarDay(day: 28, isCurrentMonth: false, monthType: .previous),
-            CalendarDay(day: 29, isCurrentMonth: false, monthType: .previous),
-            CalendarDay(day: 30, isCurrentMonth: false, monthType: .previous),
-            CalendarDay(day: 31, isCurrentMonth: false, monthType: .previous),
-            CalendarDay(day: 1, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 2, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 3, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 4, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 5, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 6, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 7, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 8, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 9, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 10, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 11, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 12, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 13, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 14, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 15, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 16, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 17, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 18, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 19, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 20, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 21, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 22, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 23, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 24, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 25, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 26, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 27, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 28, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 29, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 30, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 31, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 1, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 2, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 3, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 4, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 5, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 6, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 7, isCurrentMonth: false, monthType: .next)
+            CalendarDay(day: 28, isCurrentMonth: false, monthType: .previous, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: previousMonth), month: calendar.component(.month, from: previousMonth), day: 28)) ?? Date()),
+            CalendarDay(day: 29, isCurrentMonth: false, monthType: .previous, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: previousMonth), month: calendar.component(.month, from: previousMonth), day: 29)) ?? Date()),
+            CalendarDay(day: 30, isCurrentMonth: false, monthType: .previous, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: previousMonth), month: calendar.component(.month, from: previousMonth), day: 30)) ?? Date()),
+            CalendarDay(day: 31, isCurrentMonth: false, monthType: .previous, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: previousMonth), month: calendar.component(.month, from: previousMonth), day: 31)) ?? Date()),
+            CalendarDay(day: 1, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 1)) ?? Date()),
+            CalendarDay(day: 2, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 2)) ?? Date()),
+            CalendarDay(day: 3, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 3)) ?? Date()),
+            CalendarDay(day: 4, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 4)) ?? Date()),
+            CalendarDay(day: 5, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 5)) ?? Date()),
+            CalendarDay(day: 6, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 6)) ?? Date()),
+            CalendarDay(day: 7, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 7)) ?? Date()),
+            CalendarDay(day: 8, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 8)) ?? Date()),
+            CalendarDay(day: 9, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 9)) ?? Date()),
+            CalendarDay(day: 10, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 10)) ?? Date()),
+            CalendarDay(day: 11, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 11)) ?? Date()),
+            CalendarDay(day: 12, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 12)) ?? Date()),
+            CalendarDay(day: 13, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 13)) ?? Date()),
+            CalendarDay(day: 14, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 14)) ?? Date()),
+            CalendarDay(day: 15, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 15)) ?? Date()),
+            CalendarDay(day: 16, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 16)) ?? Date()),
+            CalendarDay(day: 17, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 17)) ?? Date()),
+            CalendarDay(day: 18, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 18)) ?? Date()),
+            CalendarDay(day: 19, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 19)) ?? Date()),
+            CalendarDay(day: 20, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 20)) ?? Date()),
+            CalendarDay(day: 21, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 21)) ?? Date()),
+            CalendarDay(day: 22, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 22)) ?? Date()),
+            CalendarDay(day: 23, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 23)) ?? Date()),
+            CalendarDay(day: 24, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 24)) ?? Date()),
+            CalendarDay(day: 25, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 25)) ?? Date()),
+            CalendarDay(day: 26, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 26)) ?? Date()),
+            CalendarDay(day: 27, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 27)) ?? Date()),
+            CalendarDay(day: 28, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 28)) ?? Date()),
+            CalendarDay(day: 29, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 29)) ?? Date()),
+            CalendarDay(day: 30, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 30)) ?? Date()),
+            CalendarDay(day: 31, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 31)) ?? Date()),
+            CalendarDay(day: 1, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: 1)) ?? Date()),
+            CalendarDay(day: 2, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: 2)) ?? Date()),
+            CalendarDay(day: 3, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: 3)) ?? Date()),
+            CalendarDay(day: 4, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: 4)) ?? Date()),
+            CalendarDay(day: 5, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: 5)) ?? Date()),
+            CalendarDay(day: 6, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: 6)) ?? Date()),
+            CalendarDay(day: 7, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: 7)) ?? Date())
         ],
         weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         initialTime: Date()
@@ -832,6 +885,11 @@ struct LockScreenCalendarWidget: Widget {
 #Preview(as: .systemMedium) {
     LockScreenCalendarWidget()
 } timeline: {
+    let calendar = Calendar.current
+    let now = Date()
+    let previousMonth = calendar.date(byAdding: .month, value: -1, to: now) ?? now
+    let nextMonth = calendar.date(byAdding: .month, value: 1, to: now) ?? now
+    
     CalendarEntry(
         date: Date(),
         selectedDate: Date(),
@@ -839,48 +897,48 @@ struct LockScreenCalendarWidget: Widget {
         currentDayName: "Monday",
         currentTime: "14:30",
         allCalendarDays: [
-            CalendarDay(day: 28, isCurrentMonth: false, monthType: .previous),
-            CalendarDay(day: 29, isCurrentMonth: false, monthType: .previous),
-            CalendarDay(day: 30, isCurrentMonth: false, monthType: .previous),
-            CalendarDay(day: 31, isCurrentMonth: false, monthType: .previous),
-            CalendarDay(day: 1, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 2, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 3, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 4, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 5, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 6, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 7, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 8, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 9, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 10, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 11, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 12, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 13, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 14, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 15, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 16, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 17, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 18, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 19, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 20, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 21, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 22, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 23, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 24, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 25, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 26, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 27, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 28, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 29, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 30, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 31, isCurrentMonth: true, monthType: .current),
-            CalendarDay(day: 1, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 2, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 3, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 4, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 5, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 6, isCurrentMonth: false, monthType: .next),
-            CalendarDay(day: 7, isCurrentMonth: false, monthType: .next)
+            CalendarDay(day: 28, isCurrentMonth: false, monthType: .previous, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: previousMonth), month: calendar.component(.month, from: previousMonth), day: 28)) ?? Date()),
+            CalendarDay(day: 29, isCurrentMonth: false, monthType: .previous, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: previousMonth), month: calendar.component(.month, from: previousMonth), day: 29)) ?? Date()),
+            CalendarDay(day: 30, isCurrentMonth: false, monthType: .previous, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: previousMonth), month: calendar.component(.month, from: previousMonth), day: 30)) ?? Date()),
+            CalendarDay(day: 31, isCurrentMonth: false, monthType: .previous, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: previousMonth), month: calendar.component(.month, from: previousMonth), day: 31)) ?? Date()),
+            CalendarDay(day: 1, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 1)) ?? Date()),
+            CalendarDay(day: 2, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 2)) ?? Date()),
+            CalendarDay(day: 3, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 3)) ?? Date()),
+            CalendarDay(day: 4, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 4)) ?? Date()),
+            CalendarDay(day: 5, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 5)) ?? Date()),
+            CalendarDay(day: 6, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 6)) ?? Date()),
+            CalendarDay(day: 7, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 7)) ?? Date()),
+            CalendarDay(day: 8, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 8)) ?? Date()),
+            CalendarDay(day: 9, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 9)) ?? Date()),
+            CalendarDay(day: 10, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 10)) ?? Date()),
+            CalendarDay(day: 11, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 11)) ?? Date()),
+            CalendarDay(day: 12, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 12)) ?? Date()),
+            CalendarDay(day: 13, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 13)) ?? Date()),
+            CalendarDay(day: 14, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 14)) ?? Date()),
+            CalendarDay(day: 15, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 15)) ?? Date()),
+            CalendarDay(day: 16, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 16)) ?? Date()),
+            CalendarDay(day: 17, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 17)) ?? Date()),
+            CalendarDay(day: 18, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 18)) ?? Date()),
+            CalendarDay(day: 19, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 19)) ?? Date()),
+            CalendarDay(day: 20, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 20)) ?? Date()),
+            CalendarDay(day: 21, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 21)) ?? Date()),
+            CalendarDay(day: 22, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 22)) ?? Date()),
+            CalendarDay(day: 23, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 23)) ?? Date()),
+            CalendarDay(day: 24, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 24)) ?? Date()),
+            CalendarDay(day: 25, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 25)) ?? Date()),
+            CalendarDay(day: 26, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 26)) ?? Date()),
+            CalendarDay(day: 27, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 27)) ?? Date()),
+            CalendarDay(day: 28, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 28)) ?? Date()),
+            CalendarDay(day: 29, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 29)) ?? Date()),
+            CalendarDay(day: 30, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 30)) ?? Date()),
+            CalendarDay(day: 31, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: 31)) ?? Date()),
+            CalendarDay(day: 1, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: 1)) ?? Date()),
+            CalendarDay(day: 2, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: 2)) ?? Date()),
+            CalendarDay(day: 3, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: 3)) ?? Date()),
+            CalendarDay(day: 4, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: 4)) ?? Date()),
+            CalendarDay(day: 5, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: 5)) ?? Date()),
+            CalendarDay(day: 6, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: 6)) ?? Date()),
+            CalendarDay(day: 7, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: 7)) ?? Date())
         ],
         weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         initialTime: Date()
