@@ -26,5 +26,21 @@
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
 	<string>1:975004551922:ios:4ee8edc94ba65200189e6b</string>
+	<key>CLIENT_ID</key>
+	<string>975004551922-4ee8edc94ba65200189e6b.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.975004551922-4ee8edc94ba65200189e6b</string>
+	<key>IS_MEASUREMENT_ENABLED</key>
+	<false></false>
+	<key>IS_AUTOMATIC_COLLECTION_ENABLED</key>
+	<false></false>
+	<key>IS_CRASHLYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_REMOTE_CONFIG_ENABLED</key>
+	<false></false>
+	<key>IS_FIREBASE_APP_DISTRIBUTION_ENABLED</key>
+	<false></false>
+	<key>IS_CLOUD_MESSAGING_ENABLED</key>
+	<true></true>
 </dict>
 </plist>
