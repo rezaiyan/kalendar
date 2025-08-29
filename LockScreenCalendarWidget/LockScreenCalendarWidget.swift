@@ -696,7 +696,7 @@ struct LockScreenMediumView: View {
     }
     
     private func miniDayView(for day: Int, isCurrentMonth: Bool) -> some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 1) {
             Text("\(day)")
                 .font(.system(size: 8, weight: isToday(day, isCurrentMonth: isCurrentMonth) ? .bold : .medium, design: .rounded))
                 .foregroundColor(isToday(day, isCurrentMonth: isCurrentMonth) ? .white : (isCurrentMonth ? .primary : .secondary))
@@ -712,6 +712,7 @@ struct LockScreenMediumView: View {
             }
         }
         .frame(width: 14, height: 16)
+        .padding(1)
         .background(
             Group {
                 if isToday(day, isCurrentMonth: isCurrentMonth) {
@@ -741,7 +742,14 @@ struct LockScreenMediumView: View {
         let currentYear = calendar.component(.year, from: today)
         let currentDay = calendar.component(.day, from: today)
         
-        return day == currentDay
+        // Check if this day number matches today's day number
+        // AND if the widget is showing the current month
+        let entryMonth = calendar.component(.month, from: entry.date)
+        let entryYear = calendar.component(.year, from: entry.date)
+        
+        // Only highlight if it's the current day AND the widget is showing the current month
+        // AND the day is actually from the current month (not previous/next month)
+        return day == currentDay && currentMonth == entryMonth && currentYear == entryYear && isCurrentMonth
     }
     
     private func createMockDate(for day: Int) -> Date {

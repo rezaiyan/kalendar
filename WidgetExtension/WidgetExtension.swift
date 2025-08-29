@@ -323,6 +323,8 @@ struct KalendarWidgetExtensionEntryView: View {
     }
 }
 
+
+
 // MARK: - Small Widget Content View
 struct SmallContentView: View {
     let entry: CalendarEntry
@@ -374,10 +376,10 @@ struct SmallContentView: View {
     }
     
     private func compactDayView(for day: Int, isCurrentMonth: Bool) -> some View {
-        VStack(spacing: 1) {
+        VStack(spacing: 2) {
             Text("\(day)")
-                .font(.system(size: 11, weight: day == Calendar.current.component(.day, from: entry.date) ? .bold : .medium, design: .rounded))
-                .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
+                .font(.system(size: 11, weight: isCurrentDay(day, isCurrentMonth: isCurrentMonth) ? .bold : .medium, design: .rounded))
+                .foregroundColor(isCurrentDay(day, isCurrentMonth: isCurrentMonth) ? .white : (isCurrentMonth ? .primary : .secondary))
                 .opacity(isCurrentMonth ? 1.0 : 0.4)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -389,14 +391,14 @@ struct SmallContentView: View {
                     .font(.system(size: 9))
                     .foregroundColor(weather.weatherColor)
                     .frame(width: 10, height: 10)
-                    .padding(.bottom, 2)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .aspectRatio(1, contentMode: .fit)
+        .padding(2)
         .background(
             Group {
-                if day == Calendar.current.component(.day, from: entry.date) {
+                if isCurrentDay(day, isCurrentMonth: isCurrentMonth) {
                     RoundedRectangle(cornerRadius: 5)
                         .fill(
                             LinearGradient(
@@ -411,6 +413,25 @@ struct SmallContentView: View {
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 5))
+    }
+    
+    private func isCurrentDay(_ day: Int, isCurrentMonth: Bool) -> Bool {
+        let calendar = Calendar.current
+        let today = Date()
+        
+        // Get the current day, month, and year
+        let currentDay = calendar.component(.day, from: today)
+        let currentMonth = calendar.component(.month, from: today)
+        let currentYear = calendar.component(.year, from: today)
+        
+        // Check if this day number matches today's day number
+        // AND if the widget is showing the current month
+        let entryMonth = calendar.component(.month, from: entry.date)
+        let entryYear = calendar.component(.year, from: entry.date)
+        
+        // Only highlight if it's the current day AND the widget is showing the current month
+        // AND the day is actually from the current month (not previous/next month)
+        return day == currentDay && currentMonth == entryMonth && currentYear == entryYear && isCurrentMonth
     }
     
     private func createMockDate(for day: Int) -> Date {
@@ -478,10 +499,10 @@ struct MediumContentView: View {
     }
     
     private func mediumDayView(for day: Int, isCurrentMonth: Bool) -> some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 3) {
             Text("\(day)")
-                .font(.system(size: 12, weight: day == Calendar.current.component(.day, from: entry.date) ? .bold : .medium, design: .rounded))
-                .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
+                .font(.system(size: 12, weight: isCurrentDay(day, isCurrentMonth: isCurrentMonth) ? .bold : .medium, design: .rounded))
+                .foregroundColor(isCurrentDay(day, isCurrentMonth: isCurrentMonth) ? .white : (isCurrentMonth ? .primary : .secondary))
                 .opacity(isCurrentMonth ? 1.0 : 0.4)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -493,14 +514,14 @@ struct MediumContentView: View {
                     .font(.system(size: 10))
                     .foregroundColor(weather.weatherColor)
                     .frame(width: 12, height: 12)
-                    .padding(.bottom, 2)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .aspectRatio(1, contentMode: .fit)
+        .padding(3)
         .background(
             Group {
-                if day == Calendar.current.component(.day, from: entry.date) {
+                if isCurrentDay(day, isCurrentMonth: isCurrentMonth) {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(
                             LinearGradient(
@@ -515,6 +536,25 @@ struct MediumContentView: View {
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+    
+    private func isCurrentDay(_ day: Int, isCurrentMonth: Bool) -> Bool {
+        let calendar = Calendar.current
+        let today = Date()
+        
+        // Get the current day, month, and year
+        let currentDay = calendar.component(.day, from: today)
+        let currentMonth = calendar.component(.month, from: today)
+        let currentYear = calendar.component(.year, from: today)
+        
+        // Check if this day number matches today's day number
+        // AND if the widget is showing the current month
+        let entryMonth = calendar.component(.month, from: entry.date)
+        let entryYear = calendar.component(.year, from: entry.date)
+        
+        // Only highlight if it's the current day AND the widget is showing the current month
+        // AND the day is actually from the current month (not previous/next month)
+        return day == currentDay && currentMonth == entryMonth && currentYear == entryYear && isCurrentMonth
     }
     
     private func createMockDate(for day: Int) -> Date {
@@ -599,10 +639,10 @@ struct LargeContentView: View {
     
     // MARK: - Calendar Day View (Same as ContentView, larger)
     private func calendarDayView(for day: Int, isCurrentMonth: Bool) -> some View {
-        VStack(spacing: 3) {
+        VStack(spacing: 4) {
             Text("\(day)")
-                .font(.system(size: 15, weight: day == Calendar.current.component(.day, from: entry.date) ? .bold : .medium, design: .rounded))
-                .foregroundColor(day == Calendar.current.component(.day, from: entry.date) ? .white : (isCurrentMonth ? .primary : .secondary))
+                .font(.system(size: 15, weight: isCurrentDay(day, isCurrentMonth: isCurrentMonth) ? .bold : .medium, design: .rounded))
+                .foregroundColor(isCurrentDay(day, isCurrentMonth: isCurrentMonth) ? .white : (isCurrentMonth ? .primary : .secondary))
                 .opacity(isCurrentMonth ? 1.0 : 0.4)
             
             if isCurrentMonth {
@@ -611,13 +651,32 @@ struct LargeContentView: View {
                 Image(systemName: weather.weatherIcon)
                     .font(.system(size: 12))
                     .foregroundColor(weather.weatherColor)
-                    .padding(.bottom, 3)
             }
         }
         .frame(width: 28, height: 32)
+        .padding(4)
         .background(dayBackground(for: day, isCurrentMonth: isCurrentMonth))
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(dayBorder(for: day, isCurrentMonth: isCurrentMonth))
+    }
+    
+    private func isCurrentDay(_ day: Int, isCurrentMonth: Bool) -> Bool {
+        let calendar = Calendar.current
+        let today = Date()
+        
+        // Get the current day, month, and year
+        let currentDay = calendar.component(.day, from: today)
+        let currentMonth = calendar.component(.month, from: today)
+        let currentYear = calendar.component(.year, from: today)
+        
+        // Check if this day number matches today's day number
+        // AND if the widget is showing the current month
+        let entryMonth = calendar.component(.month, from: entry.date)
+        let entryYear = calendar.component(.year, from: entry.date)
+        
+        // Only highlight if it's the current day AND the widget is showing the current month
+        // AND the day is actually from the current month (not previous/next month)
+        return day == currentDay && currentMonth == entryMonth && currentYear == entryYear && isCurrentMonth
     }
     
     private func createMockDate(for day: Int) -> Date {
@@ -630,7 +689,7 @@ struct LargeContentView: View {
     // MARK: - Day Background (Same as ContentView)
     private func dayBackground(for day: Int, isCurrentMonth: Bool) -> some View {
         Group {
-            if day == Calendar.current.component(.day, from: entry.date) {
+            if isCurrentDay(day, isCurrentMonth: isCurrentMonth) {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(
                         LinearGradient(
