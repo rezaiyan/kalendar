@@ -2,13 +2,6 @@
 
 A beautiful iOS calendar app with widgets built using SwiftUI and WidgetKit.
 
-## 🚨 App Store Compliance
-
-**Important**: This app has been updated to meet App Store guidelines:
-- ✅ Unique app icon design (no resemblance to Apple's Calendar app)
-- ✅ Proper screenshot requirements (showing actual app functionality)
-- ✅ iOS-only device references (no third-party platforms)
-
 ## 📱 Screenshots & Media
 
 ### 🎥 Video Demo
