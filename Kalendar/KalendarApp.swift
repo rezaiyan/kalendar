@@ -17,8 +17,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Firebase must be configured on main thread for notifications to work
         FirebaseApp.configure()
         
-        // Set up push notifications immediately
-        setupPushNotifications()
+        // Run push notification setup on background thread to avoid blocking startup
+        DispatchQueue.global(qos: .background).async {
+            self.setupPushNotifications()
+        }
         
         return true
     }
@@ -102,10 +104,12 @@ struct KalendarApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     
     init() {
-        // Defer widget timeline reload to avoid blocking startup
-        // This will run after the UI is presented
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            WidgetCenter.shared.reloadAllTimelines()
+        // Run widget timeline reload on background thread to avoid blocking startup
+        DispatchQueue.global(qos: .background).async {
+            // Small delay to let UI render first
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                WidgetCenter.shared.reloadAllTimelines()
+            }
         }
         
         // Set up a timer to refresh widgets every hour to ensure they stay current
@@ -114,8 +118,11 @@ struct KalendarApp: App {
     
     private func setupWidgetRefreshTimer() {
         // Refresh widgets every hour to ensure they stay current
-        Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in
-            WidgetCenter.shared.reloadAllTimelines()
+        // Run timer setup on background thread
+        DispatchQueue.global(qos: .background).async {
+            Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in
+                WidgetCenter.shared.reloadAllTimelines()
+            }
         }
     }
     

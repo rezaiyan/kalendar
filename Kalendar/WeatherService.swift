@@ -168,7 +168,7 @@ class WeatherService: ObservableObject {
     private var hasCalledAPIThisSession = false
     
     init() {
-        print("🏁 WeatherService: Initializing with Open-Meteo API (no API key required)")
+        print("🏁 WeatherService: Initializing with Open-Meteo API (no authentication required)")
         
         // Check if we have valid cached weather data
         if let cache = weatherCache, cache.isValid {
@@ -179,6 +179,13 @@ class WeatherService: ObservableObject {
             return
         }
         
+        // Start weather loading immediately on background thread
+        DispatchQueue.global(qos: .background).async {
+            self.loadWeatherData()
+        }
+    }
+    
+    private func loadWeatherData() {
         // Only detect location once per session
         if !hasDetectedLocationThisSession {
             detectUserLocationOnce { [weak self] coordinates in
@@ -325,7 +332,9 @@ class WeatherService: ObservableObject {
             return
         }
         
-        URLSession.shared.dataTask(with: url) { data, response, error in
+        // Use background queue for network operations
+        DispatchQueue.global(qos: .background).async {
+            URLSession.shared.dataTask(with: url) { data, response, error in
             if let error = error {
                 print("❌ WeatherService: IP geolocation error: \(error)")
                 completion(nil)
@@ -364,6 +373,7 @@ class WeatherService: ObservableObject {
                 completion(nil)
             }
         }.resume()
+        }
     }
     
     // Method 2: Device-based location detection (timezone + locale)
@@ -502,7 +512,10 @@ class WeatherService: ObservableObject {
         }
         
         print("🌤️ WeatherService: Weather URL: \(url)")
-        URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+        
+        // Use background queue for network operations
+        DispatchQueue.global(qos: .background).async {
+            URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
             if let error = error {
                 print("❌ WeatherService: Weather network error: \(error)")
                 DispatchQueue.main.async {
@@ -564,6 +577,7 @@ class WeatherService: ObservableObject {
                 }
             }
         }.resume()
+        }
     }
     
     // Convert Open-Meteo response to our WeatherResponse format
@@ -597,7 +611,9 @@ class WeatherService: ObservableObject {
             return
         }
         
-        URLSession.shared.dataTask(with: url) { data, response, error in
+        // Use background queue for network operations
+        DispatchQueue.global(qos: .background).async {
+            URLSession.shared.dataTask(with: url) { data, response, error in
             if let error = error {
                 print("❌ WeatherService: Reverse geocoding error: \(error)")
                 completion("Unknown Location")
@@ -621,6 +637,7 @@ class WeatherService: ObservableObject {
                 completion("Unknown Location")
             }
         }.resume()
+        }
     }
     
     // MARK: - Helper Methods

@@ -17,7 +17,10 @@ class NotificationManager: ObservableObject {
     @Published var fcmToken: String?
     
     private init() {
-        checkAuthorizationStatus()
+        // Run authorization check on background thread to avoid blocking startup
+        DispatchQueue.global(qos: .background).async {
+            self.checkAuthorizationStatus()
+        }
     }
     
     // MARK: - Authorization

@@ -9,7 +9,7 @@ import Foundation
 
 struct Config {
     // MARK: - API Configuration
-    // Using Open-Meteo API - free, no API key required
+    // Using Open-Meteo API - free, no authentication required
     static let openMeteoBaseURL = "https://api.open-meteo.com/v1"
     static let openMeteoGeocodingURL = "https://geocoding-api.open-meteo.com/v1"
     
