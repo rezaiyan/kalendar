@@ -550,12 +550,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionAllowsInsecureHTTPLoads = NO;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionMinimumTLSVersion = TLSv1.2;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionRequiresForwardSecrecy = YES;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSIncludesSubdomains = YES;
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Kalendar needs location access to provide accurate weather information for your area.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Kalendar needs location access to provide accurate weather information for your area.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -603,12 +597,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionAllowsInsecureHTTPLoads = NO;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionMinimumTLSVersion = TLSv1.2;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSExceptionRequiresForwardSecrecy = YES;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_api_open_meteo_com_NSIncludesSubdomains = YES;
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Kalendar needs location access to provide accurate weather information for your area.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Kalendar needs location access to provide accurate weather information for your area.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

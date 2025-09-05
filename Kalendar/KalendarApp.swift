@@ -14,10 +14,15 @@ import UserNotifications
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
-        FirebaseApp.configure()
-        
-        // Set up push notifications
-        setupPushNotifications()
+        // Move Firebase initialization to background thread to avoid blocking startup
+        DispatchQueue.global(qos: .background).async {
+            FirebaseApp.configure()
+            
+            // Set up push notifications on background thread
+            DispatchQueue.main.async {
+                self.setupPushNotifications()
+            }
+        }
         
         return true
     }
@@ -30,11 +35,13 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Set notification center delegate
         UNUserNotificationCenter.current().delegate = self
         
-        // Setup notification categories for actions
+        // Setup notification categories for actions (non-blocking)
         NotificationManager.shared.setupNotificationCategories()
         
-        // Request notification permissions through NotificationManager
-        NotificationManager.shared.requestAuthorization()
+        // Defer notification permission request to avoid blocking startup
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            NotificationManager.shared.requestAuthorization()
+        }
     }
     
     // MARK: - UNUserNotificationCenterDelegate
@@ -98,8 +105,11 @@ struct KalendarApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     
     init() {
-        // Force refresh widgets on app launch to ensure they're up to date
-        WidgetCenter.shared.reloadAllTimelines()
+        // Defer widget timeline reload to avoid blocking startup
+        // This will run after the UI is presented
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            WidgetCenter.shared.reloadAllTimelines()
+        }
     }
     
     var body: some Scene {

@@ -137,8 +137,6 @@ class NotificationManager: ObservableObject {
             switch notificationType {
             case "event_reminder":
                 handleEventReminder(userInfo)
-            case "weather_alert":
-                handleWeatherAlert(userInfo)
             case "general":
                 handleGeneralNotification(userInfo)
             default:
@@ -158,13 +156,6 @@ class NotificationManager: ObservableObject {
         }
     }
     
-    private func handleWeatherAlert(_ userInfo: [AnyHashable: Any]) {
-        // Handle weather alert notifications
-        if let weatherInfo = userInfo["weather_info"] as? String {
-            print("Handling weather alert: \(weatherInfo)")
-            // Show weather details or perform specific action
-        }
-    }
     
     private func handleGeneralNotification(_ userInfo: [AnyHashable: Any]) {
         // Handle general notifications

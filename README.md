@@ -33,16 +33,15 @@ The app now features a unique, modern icon design:
 ## 📋 App Store Screenshots
 
 For App Store compliance, screenshots must show:
-1. **Main Calendar View** - Current month with weather icons
-2. **Weather Display** - Selected date with weather details  
-3. **Widget Setup Guide** - Step-by-step installation process
-4. **Dark Mode View** - Calendar in dark theme
-5. **iPad Layout** - Proper iPad interface (if supported)
-6. **Widget Preview** - Widget on home screen
+1. **Main Calendar View** - Current month calendar display
+2. **Widget Setup Guide** - Step-by-step installation process
+3. **Dark Mode View** - Calendar in dark theme
+4. **iPad Layout** - Proper iPad interface (if supported)
+5. **Widget Preview** - Widget on home screen
 
 **Requirements**:
 - Must show actual app functionality (not splash screens)
-- Include core features: calendar, weather, widgets
+- Include core features: calendar, widgets
 - Use proper device frames (iPhone for iPhone, iPad for iPad)
 - Show app in use, not marketing materials
 
@@ -81,7 +80,6 @@ open Kalendar.xcodeproj
 - Clean, minimal design with current time display
 - Automatic dark/light mode support
 - Reliable midnight refresh handling
-- Weather integration for selected dates
 - Unique, App Store compliant icon design
 
 ## 🔧 App Store Fixes

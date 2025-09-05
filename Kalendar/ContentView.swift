@@ -10,8 +10,6 @@ import SwiftUI
 struct ContentView: View {
     @State private var selectedDate = Date()
     @State private var showWidgetGuide = false
-    @State private var showLocationRequest = false
-    @StateObject private var weatherService = WeatherService()
     
     // MARK: - iPad-Specific Layout Properties
     private var isIPad: Bool {
@@ -49,9 +47,6 @@ struct ContentView: View {
                     // MARK: - Calendar Section
                     calendarSection
                     
-                    // MARK: - Weather Summary Section
-                    weatherSummarySection
-                    
                     // MARK: - Widget Guide Section
                     widgetGuideSection
                     
@@ -71,216 +66,12 @@ struct ContentView: View {
             .sheet(isPresented: $showWidgetGuide) {
                 WidgetSetupGuide()
             }
-            .sheet(isPresented: $showLocationRequest) {
-                LocationRequestView(weatherService: weatherService)
-            }
             .onAppear {
-                // Initialize TestFlight optimizations if needed
-                weatherService.initializeForTestFlight()
-                
-                // Request location and fetch weather
-                weatherService.requestLocation()
-                Task {
-                    // For TestFlight, use specialized initialization
-                    await weatherService.initializeWeatherForTestFlight()
-                    
-                    // Fallback to regular fetch if TestFlight init didn't work
-                    if weatherService.weatherData.isEmpty {
-                        await weatherService.fetchWeatherForCurrentMonth()
-                    }
-                }
-                
-                // iPad-specific: Ensure UI updates are processed
-                if isIPad {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        // Force a UI refresh on iPad
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            // This will trigger a UI refresh
-                        }
-                    }
-                }
-            }
-            .onChange(of: weatherService.shouldShowLocationRequest) { shouldShow in
-                if shouldShow {
-                    showLocationRequest = true
-                }
+                // UI is already optimized for iPad, no need for artificial delays
             }
         }
     }
     
-    // MARK: - Weather Summary Section
-    private var weatherSummarySection: some View {
-        VStack(spacing: 20) {
-            if weatherService.isLoading {
-                HStack {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text("Loading weather...")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.secondary)
-                }
-                .padding(.vertical, 24)
-                .transition(.opacity.combined(with: .scale))
-            } else if let selectedWeather = getWeatherForSelectedDay() {
-                VStack(spacing: 16) {
-                    // Selected date header
-                    HStack {
-                        Text("Weather for \(formatSelectedDate())")
-                            .font(.system(size: 18, weight: .semibold, design: .rounded))
-                            .foregroundColor(.primary)
-                            .padding(.horizontal, 16)
-                        
-                        Spacer()
-                        
-                        if isToday(Calendar.current.component(.day, from: selectedDate)) {
-                            Text("Today")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.blue)
-                                .clipShape(Capsule())
-                                .padding(.trailing, 16)
-                        }
-                    }
-                    
-                    // Weather details
-                    HStack(spacing: 16) {
-                        // Weather icon and condition
-                        VStack(spacing: 8) {
-                            Image(systemName: selectedWeather.icon)
-                                .font(.system(size: 40, weight: .medium))
-                                .foregroundColor(selectedWeather.color)
-                                .frame(width: 40, height: 40)
-                                .contentShape(Rectangle())
-                            Text(selectedWeather.condition)
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                        .frame(width: 80, alignment: .center)
-                        
-                        // Temperature
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(Int(selectedWeather.temperature))°")
-                                .font(.system(size: 28, weight: .bold, design: .rounded))
-                                .foregroundColor(.primary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                        .frame(width: 60, alignment: .leading)
-                        
-                        // High and Low Temperature
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 6) {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "thermometer.sun.fill")
-                                        .font(.system(size: 11))
-                                        .foregroundColor(.red)
-                                    Text("\(Int(selectedWeather.maxTemp))°")
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .foregroundColor(.primary)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.8)
-                                }
-                                
-                                HStack(spacing: 3) {
-                                    Image(systemName: "thermometer.snowflake")
-                                        .font(.system(size: 11))
-                                        .foregroundColor(.blue)
-                                    Text("\(Int(selectedWeather.minTemp))°")
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .foregroundColor(.primary)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.8)
-                                }
-                            }
-                            Text("High / Low")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                        .frame(width: 90, alignment: .leading)
-                        
-                        Spacer()
-                        
-                        // Additional weather info
-                        VStack(alignment: .trailing, spacing: 6) {
-                            if let humidity = selectedWeather.humidity {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "humidity")
-                                        .font(.system(size: 11))
-                                        .foregroundColor(.blue)
-                                    Text("\(Int(humidity))%")
-                                        .font(.system(size: 11, weight: .medium))
-                                        .foregroundColor(.secondary)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.8)
-                                }
-                            }
-                            
-                            if let windSpeed = selectedWeather.windSpeed {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "wind")
-                                        .font(.system(size: 11))
-                                        .foregroundColor(.blue)
-                                    Text("\(Int(windSpeed)) km/h")
-                                        .font(.system(size: 11, weight: .medium))
-                                        .foregroundColor(.secondary)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.8)
-                                }
-                            }
-                        }
-                        .frame(width: 70, alignment: .trailing)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 20)
-                    .background(Color(.systemGray6))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .move(edge: .trailing)),
-                    removal: .opacity.combined(with: .move(edge: .leading))
-                ))
-            } else {
-                // No weather data available
-                VStack(spacing: 12) {
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 24))
-                        .foregroundColor(.secondary)
-                        .frame(width: 24, height: 24)
-                    
-                    Text("Weather data not available")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.secondary)
-                    
-                    Text("Select a date to fetch weather information")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                    
-                    // Show loading state if we're fetching weather
-                    if weatherService.isLoading {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                            Text("Fetching weather...")
-                                .font(.system(size: 14))
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.top, 8)
-                    }
-                }
-                .padding(.vertical, 24)
-                .transition(.opacity.combined(with: .scale))
-            }
-        }
-        .animation(.easeInOut(duration: 0.3), value: selectedDate)
-        .animation(.easeInOut(duration: 0.3), value: weatherService.isLoading)
-    }
     
     // MARK: - Calendar Section
     private var calendarSection: some View {
@@ -340,27 +131,12 @@ struct ContentView: View {
             
             if let selectedDateComponents = calendar.date(from: DateComponents(year: currentYear, month: currentMonth, day: day)) {
                 selectedDate = selectedDateComponents
-                
-                // Fetch weather for the selected date if not already available
-                Task {
-                    await weatherService.fetchWeatherForSelectedDate(selectedDate)
-                }
             }
         }) {
             VStack(spacing: 4) {
                 Text("\(day)")
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundColor(isToday(day) ? .white : .primary)
-                
-                // Weather icon for the day
-                if let weatherIcon = weatherIconForDay(day) {
-                    Image(systemName: weatherIcon.icon)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(weatherIcon.color)
-                        .frame(width: 16, height: 16)
-                        .contentShape(Rectangle())
-                        .transition(.scale.combined(with: .opacity))
-                }
             }
             .frame(width: calendarDaySize, height: calendarDayHeight)
             .background(
@@ -376,40 +152,11 @@ struct ContentView: View {
                         lineWidth: 2
                     )
             )
-            .animation(.easeInOut(duration: 0.2), value: weatherIconForDay(day)?.icon)
             .animation(.easeInOut(duration: 0.2), value: isSelectedDay(day))
         }
         .buttonStyle(PlainButtonStyle())
     }
     
-    // MARK: - Weather Icon Helper
-    private func weatherIconForDay(_ day: Int) -> (icon: String, color: Color)? {
-        guard day > 0 else { return nil }
-        
-        let calendar = Calendar.current
-        let today = Date()
-        let currentMonth = calendar.component(.month, from: today)
-        let currentYear = calendar.component(.year, from: today)
-        
-        guard let date = calendar.date(from: DateComponents(year: currentYear, month: currentMonth, day: day)) else {
-            return nil
-        }
-        
-        let dateString = formatDate(date)
-        
-        // Check if we have weather data for this date
-        guard let weatherInfo = weatherService.weatherData[dateString] else {
-            return nil
-        }
-        
-        return (icon: weatherInfo.weatherIcon, color: weatherInfo.weatherColor)
-    }
-    
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
-    }
     
     // MARK: - Day Background
     private func dayBackground(for day: Int) -> some View {
@@ -488,7 +235,7 @@ struct ContentView: View {
                 Spacer()
             }
             
-            Text("Long press on your home screen, tap the + button, search for 'Kalendar', and add the widget to see your calendar and weather at a glance.")
+            Text("Long press on your home screen, tap the + button, search for 'Kalendar', and add the widget to see your calendar at a glance.")
                 .font(.system(size: 14))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.leading)
@@ -649,46 +396,6 @@ struct ContentView: View {
         return days
     }
     
-    // MARK: - Weather Helper Functions
-    private func getWeatherForSelectedDay() -> (icon: String, color: Color, condition: String, temperature: Double, minTemp: Double, maxTemp: Double, humidity: Double?, windSpeed: Double?)? {
-        let dateString = formatDate(selectedDate)
-        
-        guard let weatherInfo = weatherService.weatherData[dateString] else {
-            // Clear any previous error when selecting a date without weather data
-            if weatherService.error != nil {
-                weatherService.clearError()
-            }
-            return nil
-        }
-        
-        // Clear any previous error when weather data is found
-        if weatherService.error != nil {
-            weatherService.clearError()
-        }
-        
-        return (
-            icon: weatherInfo.weatherIcon,
-            color: weatherInfo.weatherColor,
-            condition: weatherInfo.condition,
-            temperature: weatherInfo.temperature,
-            minTemp: weatherInfo.minTemp,
-            maxTemp: weatherInfo.maxTemp,
-            humidity: weatherInfo.humidity,
-            windSpeed: weatherInfo.windSpeed
-        )
-    }
-    
-    private func formatSelectedDate() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM d, yyyy"
-        return formatter.string(from: selectedDate)
-    }
-    
-    private func openSettings() {
-        if let url = URL(string: UIApplication.openSettingsURLString) {
-            UIApplication.shared.open(url)
-        }
-    }
 }
 
 // MARK: - Widget Setup Guide
@@ -973,215 +680,6 @@ struct TipItem: View {
     }
 }
 
-// MARK: - Location Request View
-struct LocationRequestView: View {
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject var weatherService: WeatherService
-    
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // Header with gradient background
-                headerSection
-                
-                // Content section
-                contentSection
-                
-                Spacer()
-                
-                // Action buttons
-                actionButtons
-            }
-            .background(Color(.systemBackground))
-            .navigationBarHidden(true)
-        }
-    }
-    
-    private var headerSection: some View {
-        VStack(spacing: 20) {
-            // Location icon with gradient
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [.blue, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 80, height: 80)
-                
-                Image(systemName: "location.fill")
-                    .font(.system(size: 36, weight: .medium))
-                    .foregroundColor(.white)
-            }
-            .shadow(color: .blue.opacity(0.3), radius: 12, x: 0, y: 6)
-            
-            VStack(spacing: 8) {
-                Text("Location Access Required")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
-                    .multilineTextAlignment(.center)
-                
-                Text("To provide accurate weather information, we need access to your location")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
-            }
-        }
-        .padding(.top, 40)
-        .padding(.bottom, 30)
-        .background(
-            LinearGradient(
-                colors: [Color(.systemGray6), Color(.systemBackground)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
-    
-    private var contentSection: some View {
-        VStack(spacing: 24) {
-            // Benefits section
-            VStack(spacing: 16) {
-                Text("Why Location Access?")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .foregroundColor(.primary)
-                
-                VStack(spacing: 12) {
-                    BenefitRow(
-                        icon: "thermometer",
-                        title: "Accurate Weather",
-                        description: "Get weather data specific to your exact location"
-                    )
-                    
-                    BenefitRow(
-                        icon: "clock",
-                        title: "Real-time Updates",
-                        description: "Weather information updates automatically"
-                    )
-                    
-                    BenefitRow(
-                        icon: "map",
-                        title: "Local Forecast",
-                        description: "See weather predictions for your area"
-                    )
-                }
-            }
-            .padding(.horizontal, 20)
-            
-            // Privacy note
-            VStack(spacing: 12) {
-                HStack(spacing: 8) {
-                    Image(systemName: "lock.shield")
-                        .font(.system(size: 16))
-                        .foregroundColor(.green)
-                    
-                    Text("Your Privacy Matters")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
-                }
-                
-                Text("We only use your location to fetch weather data. Your location is never stored or shared with third parties.")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 20)
-            .background(Color(.systemGray6))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .padding(.horizontal, 20)
-        }
-    }
-    
-    private var actionButtons: some View {
-        VStack(spacing: 16) {
-            // Enable location button
-            Button(action: {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url)
-                }
-            }) {
-                HStack(spacing: 12) {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                    Text("Enable Location Access")
-                        .font(.system(size: 18, weight: .semibold))
-                }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(
-                    LinearGradient(
-                        colors: [.blue, .purple],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
-            }
-            
-            // Continue without location button
-            Button(action: {
-                weatherService.shouldShowLocationRequest = false
-                dismiss()
-            }) {
-                Text("Continue Without Location")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(Color(.systemGray6))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 40)
-    }
-}
-
-// MARK: - Benefit Row
-struct BenefitRow: View {
-    let icon: String
-    let title: String
-    let description: String
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(Color.blue.opacity(0.1))
-                    .frame(width: 40, height: 40)
-                
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.blue)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.primary)
-                
-                Text(description)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-            }
-            
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
-    }
-}
 
 #Preview {
     ContentView()

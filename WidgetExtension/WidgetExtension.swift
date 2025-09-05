@@ -384,14 +384,6 @@ struct SmallContentView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             
-            if isCurrentMonth {
-                let mockDate = createMockDate(for: day)
-                let weather = WidgetWeatherService.shared.getWeatherForDate(mockDate)
-                Image(systemName: weather.weatherIcon)
-                    .font(.system(size: 9))
-                    .foregroundColor(weather.weatherColor)
-                    .frame(width: 10, height: 10)
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .aspectRatio(1, contentMode: .fit)
@@ -434,12 +426,6 @@ struct SmallContentView: View {
         return day == currentDay && currentMonth == entryMonth && currentYear == entryYear && isCurrentMonth
     }
     
-    private func createMockDate(for day: Int) -> Date {
-        let calendar = Calendar.current
-        let currentMonth = calendar.component(.month, from: entry.date)
-        let currentYear = calendar.component(.year, from: entry.date)
-        return calendar.date(from: DateComponents(year: currentYear, month: currentMonth, day: day)) ?? entry.date
-    }
     
     private var dayGradient: LinearGradient {
         LinearGradient(
@@ -507,14 +493,6 @@ struct MediumContentView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             
-            if isCurrentMonth {
-                let mockDate = createMockDate(for: day)
-                let weather = WidgetWeatherService.shared.getWeatherForDate(mockDate)
-                Image(systemName: weather.weatherIcon)
-                    .font(.system(size: 10))
-                    .foregroundColor(weather.weatherColor)
-                    .frame(width: 12, height: 12)
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .aspectRatio(1, contentMode: .fit)
@@ -557,12 +535,6 @@ struct MediumContentView: View {
         return day == currentDay && currentMonth == entryMonth && currentYear == entryYear && isCurrentMonth
     }
     
-    private func createMockDate(for day: Int) -> Date {
-        let calendar = Calendar.current
-        let currentMonth = calendar.component(.month, from: entry.date)
-        let currentYear = calendar.component(.year, from: entry.date)
-        return calendar.date(from: DateComponents(year: currentYear, month: currentMonth, day: day)) ?? entry.date
-    }
     
     private var dayGradient: LinearGradient {
         LinearGradient(
@@ -645,13 +617,6 @@ struct LargeContentView: View {
                 .foregroundColor(isCurrentDay(day, isCurrentMonth: isCurrentMonth) ? .white : (isCurrentMonth ? .primary : .secondary))
                 .opacity(isCurrentMonth ? 1.0 : 0.4)
             
-            if isCurrentMonth {
-                let mockDate = createMockDate(for: day)
-                let weather = WidgetWeatherService.shared.getWeatherForDate(mockDate)
-                Image(systemName: weather.weatherIcon)
-                    .font(.system(size: 12))
-                    .foregroundColor(weather.weatherColor)
-            }
         }
         .frame(width: 28, height: 32)
         .padding(4)
@@ -679,12 +644,6 @@ struct LargeContentView: View {
         return day == currentDay && currentMonth == entryMonth && currentYear == entryYear && isCurrentMonth
     }
     
-    private func createMockDate(for day: Int) -> Date {
-        let calendar = Calendar.current
-        let currentMonth = calendar.component(.month, from: entry.date)
-        let currentYear = calendar.component(.year, from: entry.date)
-        return calendar.date(from: DateComponents(year: currentYear, month: currentMonth, day: day)) ?? entry.date
-    }
     
     // MARK: - Day Background (Same as ContentView)
     private func dayBackground(for day: Int, isCurrentMonth: Bool) -> some View {
