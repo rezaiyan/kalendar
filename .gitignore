@@ -129,6 +129,9 @@ Temporary Items
 .env.local
 .env.production
 
+# API Keys (sensitive data)
+Keys.swift
+
 # IDEs
 .vscode/
 .idea/

@@ -10,6 +10,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var selectedDate = Date()
     @State private var showWidgetGuide = false
+    @StateObject private var weatherService = WeatherService()
     
     // MARK: - iPad-Specific Layout Properties
     private var isIPad: Bool {
@@ -46,6 +47,9 @@ struct ContentView: View {
                 VStack(spacing: 32) {
                     // MARK: - Calendar Section
                     calendarSection
+                    
+                    // MARK: - Weather Card Section
+                    weatherCardSection
                     
                     // MARK: - Widget Guide Section
                     widgetGuideSection
@@ -220,6 +224,169 @@ struct ContentView: View {
     private var emptyCalendarDay: some View {
         Text("")
             .frame(width: calendarDaySize, height: calendarDayHeight)
+    }
+    
+    // MARK: - Weather Card Section
+    private var weatherCardSection: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Image(systemName: "cloud.sun.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(.blue)
+                
+                Text("Today's Weather")
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                
+                Spacer()
+                
+                if weatherService.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                } else {
+                    Button(action: {
+                        weatherService.refreshUserLocation()
+                    }) {
+                        Image(systemName: "location.circle")
+                            .font(.system(size: 16))
+                            .foregroundColor(.blue)
+                    }
+                }
+            }
+            
+            if let weather = weatherService.currentWeather {
+                weatherCard(weather: weather)
+            } else if let errorMessage = weatherService.errorMessage {
+                errorCard(message: errorMessage)
+            } else {
+                loadingCard
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+    
+    // MARK: - Weather Card
+    private func weatherCard(weather: WeatherResponse) -> some View {
+        VStack(spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(weather.name)
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundColor(.primary)
+                    
+                    if let weatherInfo = weather.weather.first {
+                        Text(weatherInfo.description.capitalized)
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    if let weatherInfo = weather.weather.first {
+                        Image(systemName: weatherService.getWeatherIcon(for: weatherInfo))
+                            .font(.system(size: 32))
+                            .foregroundColor(weatherService.getWeatherColor(for: weatherInfo))
+                    }
+                    
+                    Text("\(Int(weather.main.temp))°")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(.primary)
+                }
+            }
+            
+            HStack(spacing: 20) {
+                weatherDetail(
+                    icon: "thermometer",
+                    title: "Feels like",
+                    value: "\(Int(weather.main.feels_like))°"
+                )
+                
+                weatherDetail(
+                    icon: "humidity",
+                    title: "Humidity",
+                    value: "\(weather.main.humidity)%"
+                )
+                
+                weatherDetail(
+                    icon: "arrow.up.arrow.down",
+                    title: "Range",
+                    value: "\(Int(weather.main.temp_min))°-\(Int(weather.main.temp_max))°"
+                )
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
+    }
+    
+    // MARK: - Weather Detail
+    private func weatherDetail(icon: String, title: String, value: String) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundColor(.blue)
+            
+            Text(title)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundColor(.secondary)
+            
+            Text(value)
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundColor(.primary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+    
+    // MARK: - Error Card
+    private func errorCard(message: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 24))
+                .foregroundColor(.orange)
+            
+            Text("Weather Unavailable")
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundColor(.primary)
+            
+            Text(message)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            
+            Button("Try Again") {
+                weatherService.tryNextDefaultLocation()
+            }
+            .font(.system(size: 14, weight: .medium, design: .rounded))
+            .foregroundColor(.blue)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
+    }
+    
+    // MARK: - Loading Card
+    private var loadingCard: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .scaleEffect(1.2)
+            
+            Text("Loading weather...")
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundColor(.secondary)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
     }
     
     // MARK: - Widget Guide Section
