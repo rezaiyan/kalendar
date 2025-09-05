@@ -8,12 +8,10 @@
 import Foundation
 
 struct Config {
-    // MARK: - API Keys
-    static let openWeatherAPIKey = APIKeys.openWeatherAPIKey
-    
     // MARK: - API Configuration
-    static let openWeatherBaseURL = "https://api.openweathermap.org/data/2.5"
-    static let openWeatherGeocodingURL = "https://api.openweathermap.org/geo/1.0/direct"
+    // Using Open-Meteo API - free, no API key required
+    static let openMeteoBaseURL = "https://api.open-meteo.com/v1"
+    static let openMeteoGeocodingURL = "https://geocoding-api.open-meteo.com/v1"
     
     // MARK: - Default Coordinates (fallback when no location is available)
     static let defaultCoordinates: [(name: String, lat: Double, lon: Double)] = [

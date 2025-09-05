@@ -266,64 +266,128 @@ struct ContentView: View {
     
     // MARK: - Weather Card
     private func weatherCard(weather: WeatherResponse) -> some View {
-        VStack(spacing: 12) {
+        let weatherInfo = Weather(weatherCode: weather.current.weather_code)
+        
+        return VStack(spacing: 0) {
+            // Header with weather condition and icon
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(weather.name)
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    Text(weatherInfo.description.capitalized)
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
                         .foregroundColor(.primary)
-                    
-                    if let weatherInfo = weather.weather.first {
-                        Text(weatherInfo.description.capitalized)
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
-                            .foregroundColor(.secondary)
-                    }
                 }
                 
                 Spacer()
                 
-                VStack(alignment: .trailing, spacing: 4) {
-                    if let weatherInfo = weather.weather.first {
-                        Image(systemName: weatherService.getWeatherIcon(for: weatherInfo))
-                            .font(.system(size: 32))
-                            .foregroundColor(weatherService.getWeatherColor(for: weatherInfo))
-                    }
-                    
-                    Text("\(Int(weather.main.temp))°")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundColor(.primary)
-                }
+                Image(systemName: weatherService.getWeatherIcon(for: weatherInfo))
+                    .font(.system(size: 40, weight: .light))
+                    .foregroundColor(weatherService.getWeatherColor(for: weatherInfo))
+                    .symbolEffect(.pulse, options: .repeating)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
             
-            HStack(spacing: 20) {
-                weatherDetail(
-                    icon: "thermometer",
+            // Temperature display
+            HStack(alignment: .top) {
+                Text("\(Int(weather.current.temperature_2m))")
+                    .font(.system(size: 64, weight: .thin, design: .rounded))
+                    .foregroundColor(.primary)
+                
+                Text("°C")
+                    .font(.system(size: 24, weight: .light, design: .rounded))
+                    .foregroundColor(.secondary)
+                    .padding(.top, 8)
+                
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            
+            // Weather details grid
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 16) {
+                modernWeatherDetail(
+                    icon: "thermometer.medium",
                     title: "Feels like",
-                    value: "\(Int(weather.main.feels_like))°"
+                    value: "\(Int(weather.current.temperature_2m))°",
+                    color: .orange
                 )
                 
-                weatherDetail(
+                modernWeatherDetail(
                     icon: "humidity",
                     title: "Humidity",
-                    value: "\(weather.main.humidity)%"
+                    value: "\(weather.current.relative_humidity_2m)%",
+                    color: .blue
                 )
                 
-                weatherDetail(
-                    icon: "arrow.up.arrow.down",
-                    title: "Range",
-                    value: "\(Int(weather.main.temp_min))°-\(Int(weather.main.temp_max))°"
+                modernWeatherDetail(
+                    icon: "wind",
+                    title: "Wind",
+                    value: "\(Int(weather.current.wind_speed_10m)) km/h",
+                    color: .cyan
                 )
             }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
         }
-        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemGray6))
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+            RoundedRectangle(cornerRadius: 24)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(.systemBackground),
+                            Color(.systemGray6).opacity(0.3)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: 8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.white.opacity(0.8),
+                                    Color.clear
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
         )
     }
     
-    // MARK: - Weather Detail
+    // MARK: - Modern Weather Detail
+    private func modernWeatherDetail(icon: String, title: String, value: String, color: Color) -> some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.15))
+                    .frame(width: 44, height: 44)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(color)
+            }
+            
+            VStack(spacing: 2) {
+                Text(title)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                
+                Text(value)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundColor(.primary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+    
+    // MARK: - Legacy Weather Detail (kept for compatibility)
     private func weatherDetail(icon: String, title: String, value: String) -> some View {
         VStack(spacing: 4) {
             Image(systemName: icon)
@@ -343,153 +407,367 @@ struct ContentView: View {
     
     // MARK: - Error Card
     private func errorCard(message: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 24))
-                .foregroundColor(.orange)
+        VStack(spacing: 0) {
+            // Header with icon and title
+            HStack {
+                ZStack {
+                    Circle()
+                        .fill(Color.orange.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(.orange)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Weather Unavailable")
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundColor(.primary)
+                    
+                    Text("Connection Error")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(.secondary)
+                        .opacity(0.8)
+                }
+                
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
             
-            Text("Weather Unavailable")
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundColor(.primary)
-            
+            // Error message
             Text(message)
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+                .multilineTextAlignment(.leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
             
+            // Retry button
             Button("Try Again") {
                 weatherService.tryNextDefaultLocation()
             }
-            .font(.system(size: 14, weight: .medium, design: .rounded))
-            .foregroundColor(.blue)
+            .font(.system(size: 16, weight: .semibold, design: .rounded))
+            .foregroundColor(.white)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [.orange, .orange.opacity(0.8)]),
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .clipShape(Capsule())
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 20)
         }
-        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemGray6))
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+            RoundedRectangle(cornerRadius: 24)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(.systemBackground),
+                            Color(.systemGray6).opacity(0.3)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: 8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.white.opacity(0.8),
+                                    Color.clear
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
         )
     }
     
     // MARK: - Loading Card
     private var loadingCard: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-                .scaleEffect(1.2)
+        VStack(spacing: 0) {
+            // Header with icon and title
+            HStack {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    
+                    ProgressView()
+                        .scaleEffect(1.2)
+                        .tint(.blue)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Loading Weather")
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundColor(.primary)
+                    
+                    Text("Please wait...")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(.secondary)
+                        .opacity(0.8)
+                }
+                
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
             
-            Text("Loading weather...")
+            // Loading message
+            Text("Fetching current weather data...")
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundColor(.secondary)
+                .multilineTextAlignment(.leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 20)
         }
-        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemGray6))
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+            RoundedRectangle(cornerRadius: 24)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(.systemBackground),
+                            Color(.systemGray6).opacity(0.3)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: 8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.white.opacity(0.8),
+                                    Color.clear
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
         )
     }
     
     // MARK: - Widget Guide Section
     private var widgetGuideSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 0) {
+            // Header with icon and title
             HStack {
-                Image(systemName: "info.circle")
-                    .font(.system(size: 16))
-                    .foregroundColor(.blue)
-                Text("Add Widget to Home Screen")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.primary)
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(.blue)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Add Widget to Home Screen")
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundColor(.primary)
+                    
+                    Text("Widget Guide")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(.secondary)
+                        .opacity(0.8)
+                }
+                
                 Spacer()
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
             
+            // Description
             Text("Long press on your home screen, tap the + button, search for 'Kalendar', and add the widget to see your calendar at a glance.")
-                .font(.system(size: 14))
+                .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
             
+            // Action button
             Button(action: {
                 showWidgetGuide = true
             }) {
-                HStack {
-                    Image(systemName: "plus.circle")
-                        .font(.system(size: 16))
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 16, weight: .medium))
                     Text("Learn More")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
                 }
-                .foregroundColor(.blue)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color.blue.opacity(0.1))
+                .foregroundColor(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(
+                    LinearGradient(
+                        gradient: Gradient(colors: [.blue, .blue.opacity(0.8)]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
                 .clipShape(Capsule())
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 20)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 20)
-        .background(Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(.systemBackground),
+                            Color(.systemGray6).opacity(0.3)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: 8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.white.opacity(0.8),
+                                    Color.clear
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+        )
     }
     
     // MARK: - Open Source Footer
     private var openSourceFooter: some View {
-        VStack(spacing: 16) {
-            Divider()
-                .background(Color.gray.opacity(0.3))
-            
-            VStack(spacing: 12) {
-                HStack(spacing: 8) {
-                    Image(systemName: "heart.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(.red)
+        VStack(spacing: 0) {
+            // Header with icon and title
+            HStack {
+                ZStack {
+                    Circle()
+                        .fill(Color.red.opacity(0.15))
+                        .frame(width: 44, height: 44)
                     
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(.red)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Open Source Project")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
                         .foregroundColor(.primary)
                     
-                    Spacer()
+                    Text("Built with ❤️")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(.secondary)
+                        .opacity(0.8)
                 }
                 
-                Text("Kalendar is built with ❤️ and open source. Feel free to contribute, report issues, or star the project.")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.leading)
-                
-                HStack(spacing: 16) {
-                    Link(destination: URL(string: "https://github.com/rezaiyan/kalendar")!) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "link")
-                                .font(.system(size: 14))
-                            Text("View on GitHub")
-                                .font(.system(size: 14, weight: .medium))
-                        }
-                        .foregroundColor(.blue)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Color.blue.opacity(0.1))
-                        .clipShape(Capsule())
-                    }
-                    
-                    Link(destination: URL(string: "https://github.com/rezaiyan/kalendar/blob/main/LICENSE")!) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "doc.text")
-                                .font(.system(size: 14))
-                            Text("License")
-                                .font(.system(size: 14, weight: .medium))
-                        }
-                        .foregroundColor(.blue)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Color.blue.opacity(0.1))
-                        .clipShape(Capsule())
-                    }
-                    
-                    Spacer()
-                }
+                Spacer()
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            
+            // Description
+            Text("Kalendar is built with ❤️ and open source. Feel free to contribute, report issues, or star the project.")
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+            
+            // Action buttons
+            HStack(spacing: 12) {
+                Link(destination: URL(string: "https://github.com/rezaiyan/kalendar")!) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "link")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("GitHub")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [.blue, .blue.opacity(0.8)]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(Capsule())
+                }
+                
+                Link(destination: URL(string: "https://github.com/rezaiyan/kalendar/blob/main/LICENSE")!) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "doc.text")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("License")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundColor(.blue)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color.blue.opacity(0.1))
+                    .clipShape(Capsule())
+                }
+                
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 20)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 24)
-        .background(Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(.systemBackground),
+                            Color(.systemGray6).opacity(0.3)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: 8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.white.opacity(0.8),
+                                    Color.clear
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+        )
     }
     
     // MARK: - Background Gradient

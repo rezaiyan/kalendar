@@ -8,19 +8,39 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Weather Models
+// MARK: - Weather Models (Open-Meteo API)
 struct WeatherResponse: Codable {
-    let weather: [Weather]
-    let main: Main
-    let name: String
-    let sys: Sys
+    let current: CurrentWeather
+    let location: LocationInfo
 }
 
-struct Weather: Codable {
+struct CurrentWeather: Codable {
+    let temperature_2m: Double
+    let relative_humidity_2m: Int
+    let weather_code: Int
+    let wind_speed_10m: Double
+    let wind_direction_10m: Int
+}
+
+struct LocationInfo: Codable {
+    let name: String
+    let country: String
+    let timezone: String
+}
+
+// MARK: - Weather Code Mapping
+struct Weather {
     let id: Int
     let main: String
     let description: String
     let icon: String
+    
+    init(weatherCode: Int) {
+        self.id = weatherCode
+        self.main = WeatherCodeMapper.mainCondition(for: weatherCode)
+        self.description = WeatherCodeMapper.description(for: weatherCode)
+        self.icon = WeatherCodeMapper.icon(for: weatherCode)
+    }
 }
 
 struct Main: Codable {
@@ -29,12 +49,26 @@ struct Main: Codable {
     let temp_min: Double
     let temp_max: Double
     let humidity: Int
+    
+    init(temperature: Double, humidity: Int) {
+        self.temp = temperature
+        self.feels_like = temperature // Open-Meteo doesn't provide feels_like
+        self.temp_min = temperature - 2 // Approximate
+        self.temp_max = temperature + 2 // Approximate
+        self.humidity = humidity
+    }
 }
 
 struct Sys: Codable {
     let country: String
     let sunrise: Int
     let sunset: Int
+    
+    init(country: String) {
+        self.country = country
+        self.sunrise = 0 // Open-Meteo doesn't provide sunrise/sunset in current weather
+        self.sunset = 0
+    }
 }
 
 // MARK: - Weather Cache
@@ -49,14 +83,79 @@ struct WeatherCache {
     }
 }
 
+// MARK: - Weather Code Mapper
+struct WeatherCodeMapper {
+    static func mainCondition(for code: Int) -> String {
+        switch code {
+        case 0: return "Clear"
+        case 1, 2, 3: return "Clouds"
+        case 45, 48: return "Fog"
+        case 51, 53, 55: return "Drizzle"
+        case 61, 63, 65: return "Rain"
+        case 71, 73, 75: return "Snow"
+        case 77: return "Snow"
+        case 80, 81, 82: return "Rain"
+        case 85, 86: return "Snow"
+        case 95: return "Thunderstorm"
+        case 96, 99: return "Thunderstorm"
+        default: return "Unknown"
+        }
+    }
+    
+    static func description(for code: Int) -> String {
+        switch code {
+        case 0: return "Clear sky"
+        case 1: return "Mainly clear"
+        case 2: return "Partly cloudy"
+        case 3: return "Overcast"
+        case 45: return "Fog"
+        case 48: return "Depositing rime fog"
+        case 51: return "Light drizzle"
+        case 53: return "Moderate drizzle"
+        case 55: return "Dense drizzle"
+        case 61: return "Slight rain"
+        case 63: return "Moderate rain"
+        case 65: return "Heavy rain"
+        case 71: return "Slight snow"
+        case 73: return "Moderate snow"
+        case 75: return "Heavy snow"
+        case 77: return "Snow grains"
+        case 80: return "Slight rain showers"
+        case 81: return "Moderate rain showers"
+        case 82: return "Violent rain showers"
+        case 85: return "Slight snow showers"
+        case 86: return "Heavy snow showers"
+        case 95: return "Thunderstorm"
+        case 96: return "Thunderstorm with slight hail"
+        case 99: return "Thunderstorm with heavy hail"
+        default: return "Unknown"
+        }
+    }
+    
+    static func icon(for code: Int) -> String {
+        switch code {
+        case 0: return "sun.max.fill"
+        case 1, 2: return "cloud.sun.fill"
+        case 3: return "cloud.fill"
+        case 45, 48: return "cloud.fog.fill"
+        case 51, 53, 55: return "cloud.drizzle.fill"
+        case 61, 63, 65: return "cloud.rain.fill"
+        case 71, 73, 75, 77: return "cloud.snow.fill"
+        case 80, 81, 82: return "cloud.sun.rain.fill"
+        case 85, 86: return "cloud.snow.fill"
+        case 95, 96, 99: return "cloud.bolt.fill"
+        default: return "cloud.fill"
+        }
+    }
+}
+
 // MARK: - Weather Service
 class WeatherService: ObservableObject {
     @Published var currentWeather: WeatherResponse?
     @Published var isLoading = false
     @Published var errorMessage: String?
     
-    private let apiKey = Config.openWeatherAPIKey
-    private let baseURL = Config.openWeatherBaseURL
+    private let baseURL = Config.openMeteoBaseURL
     
     // Default coordinates to try if no location is detected
     private let defaultCoordinates = Config.defaultCoordinates
@@ -69,10 +168,7 @@ class WeatherService: ObservableObject {
     private var hasCalledAPIThisSession = false
     
     init() {
-        print("🏁 WeatherService: Initializing with cache optimization")
-        
-        // Validate API credentials format
-        validateAPICredentials()
+        print("🏁 WeatherService: Initializing with Open-Meteo API (no API key required)")
         
         // Check if we have valid cached weather data
         if let cache = weatherCache, cache.isValid {
@@ -103,7 +199,6 @@ class WeatherService: ObservableObject {
     // Optimized method that respects session limits and caching
     private func fetchWeatherOncePerSession(lat: Double, lon: Double) {
         // Check cache first (using coordinates as cache identifier)
-        let cacheKey = "\(lat),\(lon)"
         if let cache = weatherCache, cache.isValid {
             print("✅ WeatherService: Using cached weather for coordinates \(lat), \(lon)")
             DispatchQueue.main.async {
@@ -186,30 +281,6 @@ class WeatherService: ObservableObject {
     
     // MARK: - Private Methods
     
-    // Validate API credentials format and provide helpful feedback
-    private func validateAPICredentials() {
-        print("🔑 WeatherService: Validating API credentials...")
-        
-        if apiKey.isEmpty {
-            print("❌ WeatherService: API credentials are empty!")
-            DispatchQueue.main.async {
-                self.errorMessage = "API credentials not configured. Please add your OpenWeather credentials."
-            }
-            return
-        }
-        
-        // OpenWeather API credentials are typically 32 characters long and contain only alphanumeric characters
-        if apiKey.count != 32 {
-            print("⚠️ WeatherService: API credentials length is \(apiKey.count), expected 32 characters")
-        }
-        
-        let validCharacters = CharacterSet.alphanumerics
-        if apiKey.rangeOfCharacter(from: validCharacters.inverted) != nil {
-            print("⚠️ WeatherService: API credentials contain invalid characters")
-        }
-        
-        print("🔑 WeatherService: API credentials format check complete (length: \(apiKey.count))")
-    }
     
     // Detect user's location using multiple methods (once per session)
     private func detectUserLocationOnce(completion: @escaping ((lat: Double, lon: Double)?) -> Void) {
@@ -418,7 +489,10 @@ class WeatherService: ObservableObject {
     
     
     private func fetchWeatherForCoordinates(lat: Double, lon: Double) {
-        guard let url = URL(string: "\(baseURL)/weather?lat=\(lat)&lon=\(lon)&appid=\(apiKey)&units=metric") else {
+        // Open-Meteo API URL for current weather
+        let urlString = "\(baseURL)/forecast?latitude=\(lat)&longitude=\(lon)&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m&timezone=auto"
+        
+        guard let url = URL(string: urlString) else {
             print("❌ WeatherService: Invalid weather URL")
             DispatchQueue.main.async {
                 self.isLoading = false
@@ -454,50 +528,34 @@ class WeatherService: ObservableObject {
             print("🌤️ WeatherService: Weather data received: \(data.count) bytes")
             
             do {
-                let weatherResponse = try JSONDecoder().decode(WeatherResponse.self, from: data)
-                print("✅ WeatherService: Weather decode success: \(weatherResponse.name), \(weatherResponse.main.temp)°C")
+                let openMeteoResponse = try JSONDecoder().decode(OpenMeteoResponse.self, from: data)
+                print("✅ WeatherService: Open-Meteo decode success: \(openMeteoResponse.current.temperature_2m)°C")
                 
-                DispatchQueue.main.async {
-                    self?.isLoading = false
-                    self?.currentWeather = weatherResponse
-                    self?.errorMessage = nil
+                // Get city name using reverse geocoding
+                self?.getCityName(from: lat, lon: lon) { cityName in
+                    // Convert Open-Meteo response to our WeatherResponse format with city name
+                    let weatherResponse = self?.convertOpenMeteoToWeatherResponse(openMeteoResponse, lat: lat, lon: lon, cityName: cityName)
                     
-                    // Cache the weather data
-                    self?.weatherCache = WeatherCache(
-                        weather: weatherResponse,
-                        timestamp: Date(),
-                        city: weatherResponse.name
-                    )
-                    print("💾 WeatherService: Cached weather data for \(weatherResponse.name)")
+                    DispatchQueue.main.async {
+                        self?.isLoading = false
+                        self?.currentWeather = weatherResponse
+                        self?.errorMessage = nil
+                        
+                        // Cache the weather data
+                        if let weather = weatherResponse {
+                            self?.weatherCache = WeatherCache(
+                                weather: weather,
+                                timestamp: Date(),
+                                city: cityName
+                            )
+                            print("💾 WeatherService: Cached weather data for \(cityName)")
+                        }
+                    }
                 }
             } catch {
                 print("❌ WeatherService: Weather decode error: \(error)")
                 if let responseString = String(data: data, encoding: .utf8) {
                     print("🌤️ WeatherService: Raw weather response: \(responseString)")
-                    
-                    // Check for specific API errors
-                    if responseString.contains("\"cod\":401") {
-                        print("🔑 WeatherService: API credentials error detected")
-                        DispatchQueue.main.async {
-                            self?.isLoading = false
-                            self?.errorMessage = "Invalid API credentials. Please check your OpenWeather credentials."
-                        }
-                        return
-                    } else if responseString.contains("\"cod\":429") {
-                        print("⚠️ WeatherService: Rate limit exceeded")
-                        DispatchQueue.main.async {
-                            self?.isLoading = false
-                            self?.errorMessage = "API rate limit exceeded. Please try again later."
-                        }
-                        return
-                    } else if responseString.contains("\"cod\":404") {
-                        print("🗺️ WeatherService: Location not found")
-                        DispatchQueue.main.async {
-                            self?.isLoading = false
-                            self?.errorMessage = "Location not found. Trying next location..."
-                        }
-                        return
-                    }
                 }
                 
                 DispatchQueue.main.async {
@@ -508,36 +566,118 @@ class WeatherService: ObservableObject {
         }.resume()
     }
     
+    // Convert Open-Meteo response to our WeatherResponse format
+    private func convertOpenMeteoToWeatherResponse(_ response: OpenMeteoResponse, lat: Double, lon: Double, cityName: String) -> WeatherResponse {
+        let current = response.current
+        
+        let location = LocationInfo(
+            name: cityName,
+            country: "Unknown",
+            timezone: "UTC"
+        )
+        
+        return WeatherResponse(
+            current: CurrentWeather(
+                temperature_2m: current.temperature_2m,
+                relative_humidity_2m: current.relative_humidity_2m,
+                weather_code: current.weather_code,
+                wind_speed_10m: current.wind_speed_10m,
+                wind_direction_10m: current.wind_direction_10m
+            ),
+            location: location
+        )
+    }
+    
+    // MARK: - Reverse Geocoding
+    private func getCityName(from lat: Double, lon: Double, completion: @escaping (String) -> Void) {
+        let urlString = "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=\(lat)&longitude=\(lon)&localityLanguage=en"
+        
+        guard let url = URL(string: urlString) else {
+            completion("Unknown Location")
+            return
+        }
+        
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            if let error = error {
+                print("❌ WeatherService: Reverse geocoding error: \(error)")
+                completion("Unknown Location")
+                return
+            }
+            
+            guard let data = data else {
+                completion("Unknown Location")
+                return
+            }
+            
+            do {
+                let geocodingResponse = try JSONDecoder().decode(ReverseGeocodingResponse.self, from: data)
+                if let result = geocodingResponse.results.first {
+                    completion(result.displayName)
+                } else {
+                    completion("Unknown Location")
+                }
+            } catch {
+                print("❌ WeatherService: Reverse geocoding decode error: \(error)")
+                completion("Unknown Location")
+            }
+        }.resume()
+    }
+    
     // MARK: - Helper Methods
     func getWeatherIcon(for weather: Weather) -> String {
-        switch weather.icon {
-        case "01d", "01n": return "sun.max.fill"
-        case "02d", "02n": return "cloud.sun.fill"
-        case "03d", "03n": return "cloud.fill"
-        case "04d", "04n": return "cloud.fill"
-        case "09d", "09n": return "cloud.rain.fill"
-        case "10d", "10n": return "cloud.sun.rain.fill"
-        case "11d", "11n": return "cloud.bolt.fill"
-        case "13d", "13n": return "cloud.snow.fill"
-        case "50d", "50n": return "cloud.fog.fill"
-        default: return "cloud.fill"
-        }
+        return weather.icon
     }
     
     func getWeatherColor(for weather: Weather) -> Color {
-        switch weather.icon {
-        case "01d", "01n": return .yellow
-        case "02d", "02n": return .orange
-        case "03d", "03n", "04d", "04n": return .gray
-        case "09d", "09n", "10d", "10n": return .blue
-        case "11d", "11n": return .purple
-        case "13d", "13n": return .white
-        case "50d", "50n": return .gray
+        switch weather.id {
+        case 0: return .yellow
+        case 1, 2: return .orange
+        case 3: return .gray
+        case 45, 48: return .gray
+        case 51, 53, 55: return .blue
+        case 61, 63, 65: return .blue
+        case 71, 73, 75, 77: return .white
+        case 80, 81, 82: return .blue
+        case 85, 86: return .white
+        case 95, 96, 99: return .purple
         default: return .gray
         }
     }
 }
 
+
+    // MARK: - Open-Meteo API Response
+struct OpenMeteoResponse: Codable {
+    let current: OpenMeteoCurrent
+}
+
+struct OpenMeteoCurrent: Codable {
+    let temperature_2m: Double
+    let relative_humidity_2m: Int
+    let weather_code: Int
+    let wind_speed_10m: Double
+    let wind_direction_10m: Int
+}
+
+// MARK: - Reverse Geocoding Response
+struct ReverseGeocodingResponse: Codable {
+    let results: [GeocodingResult]
+}
+
+struct GeocodingResult: Codable {
+    let name: String
+    let country: String
+    let admin1: String?
+    let admin2: String?
+    
+    var displayName: String {
+        if let admin1 = admin1, !admin1.isEmpty {
+            return "\(name), \(admin1)"
+        } else {
+            return "\(name), \(country)"
+        }
+    }
+}
 
 // MARK: - IP Geolocation Response
 struct IPLocationResponse: Codable {

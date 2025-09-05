@@ -131,6 +131,7 @@ Temporary Items
 
 # API Keys (sensitive data)
 Keys.swift
+set_local_env.sh
 
 # IDEs
 .vscode/
