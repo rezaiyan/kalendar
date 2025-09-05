@@ -22,18 +22,23 @@ class NotificationManager: ObservableObject {
     
     // MARK: - Authorization
     func requestAuthorization() {
+        print("🔔 NotificationManager: Requesting authorization...")
         let options: UNAuthorizationOptions = [.alert, .badge, .sound]
         
         UNUserNotificationCenter.current().requestAuthorization(options: options) { [weak self] granted, error in
             DispatchQueue.main.async {
+                print("🔔 NotificationManager: Authorization result - granted: \(granted)")
                 self?.isAuthorized = granted
                 if granted {
+                    print("🔔 NotificationManager: Registering for remote notifications...")
                     self?.registerForRemoteNotifications()
+                } else {
+                    print("🔔 NotificationManager: Authorization denied")
                 }
             }
             
             if let error = error {
-                print("Error requesting notification authorization: \(error)")
+                print("🔔 NotificationManager: Error requesting authorization: \(error)")
             }
         }
     }

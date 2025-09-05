@@ -14,34 +14,31 @@ import UserNotifications
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
-        // Move Firebase initialization to background thread to avoid blocking startup
-        DispatchQueue.global(qos: .background).async {
-            FirebaseApp.configure()
-            
-            // Set up push notifications on background thread
-            DispatchQueue.main.async {
-                self.setupPushNotifications()
-            }
-        }
+        // Firebase must be configured on main thread for notifications to work
+        FirebaseApp.configure()
+        
+        // Set up push notifications immediately
+        setupPushNotifications()
         
         return true
     }
     
     // MARK: - Push Notification Setup
     private func setupPushNotifications() {
+        print("🔔 Setting up push notifications...")
+        
         // Set messaging delegate
         Messaging.messaging().delegate = self
         
         // Set notification center delegate
         UNUserNotificationCenter.current().delegate = self
         
-        // Setup notification categories for actions (non-blocking)
+        // Setup notification categories for actions
         NotificationManager.shared.setupNotificationCategories()
         
-        // Defer notification permission request to avoid blocking startup
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            NotificationManager.shared.requestAuthorization()
-        }
+        // Request notification permissions immediately for notifications to work
+        print("🔔 Requesting notification authorization...")
+        NotificationManager.shared.requestAuthorization()
     }
     
     // MARK: - UNUserNotificationCenterDelegate
@@ -110,6 +107,16 @@ struct KalendarApp: App {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             WidgetCenter.shared.reloadAllTimelines()
         }
+        
+        // Set up a timer to refresh widgets every hour to ensure they stay current
+        setupWidgetRefreshTimer()
+    }
+    
+    private func setupWidgetRefreshTimer() {
+        // Refresh widgets every hour to ensure they stay current
+        Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in
+            WidgetCenter.shared.reloadAllTimelines()
+        }
     }
     
     var body: some Scene {
@@ -120,6 +127,10 @@ struct KalendarApp: App {
                     if url.scheme == "kalendar-refresh" {
                         WidgetCenter.shared.reloadAllTimelines()
                     }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                    // Refresh widgets when app becomes active to ensure they're current
+                    WidgetCenter.shared.reloadAllTimelines()
                 }
                 .environmentObject(NotificationManager.shared)
         }

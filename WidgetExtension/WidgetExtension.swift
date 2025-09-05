@@ -80,11 +80,23 @@ struct MainWidgetTimelineProvider: TimelineProvider {
         var entries: [CalendarEntry] = []
         let now = Date()
         
-        // 1. Current entry
+        // 1. Current entry (immediate)
         let currentEntry = createEntry(for: now)
         entries.append(currentEntry)
         
-        // 2. Multiple refresh points for reliability
+        // 2. Add entry for next 5 minutes (for immediate updates)
+        if let next5Min = calendar.date(byAdding: .minute, value: 5, to: now) {
+            let next5MinEntry = createEntry(for: next5Min)
+            entries.append(next5MinEntry)
+        }
+        
+        // 3. Add entry for next 15 minutes (for quick updates)
+        if let next15Min = calendar.date(byAdding: .minute, value: 15, to: now) {
+            let next15MinEntry = createEntry(for: next15Min)
+            entries.append(next15MinEntry)
+        }
+        
+        // 4. Multiple refresh points for reliability
         let refreshTimes = calculateRefreshTimes(from: now)
         for refreshTime in refreshTimes {
             let entry = createEntry(for: refreshTime)
@@ -92,6 +104,7 @@ struct MainWidgetTimelineProvider: TimelineProvider {
         }
         
         // Use .atEnd policy to ensure refresh when timeline ends
+        // This ensures the widget refreshes when the timeline expires
         let timeline = Timeline(entries: entries, policy: .atEnd)
         
         #if DEBUG
@@ -140,40 +153,57 @@ struct MainWidgetTimelineProvider: TimelineProvider {
             return []
         }
         
-        // Add midnight refresh
+        // Add midnight refresh (most important for day changes)
         refreshTimes.append(tomorrowMidnight)
         
-        // Add additional refresh points for extra reliability
+        // Add multiple refresh points for maximum reliability
         
-        // 1. Next day at 1 AM (in case midnight refresh fails)
+        // 1. 30 minutes after midnight (backup for midnight refresh)
+        if let midnight30 = calendar.date(byAdding: .minute, value: 30, to: tomorrowMidnight) {
+            refreshTimes.append(midnight30)
+        }
+        
+        // 2. 1 hour after midnight (backup)
         if let oneAM = calendar.date(byAdding: .hour, value: 1, to: tomorrowMidnight) {
             refreshTimes.append(oneAM)
         }
         
-        // 2. Next day at 6 AM (for good measure)
+        // 3. 6 AM (morning refresh)
         if let sixAM = calendar.date(byAdding: .hour, value: 6, to: tomorrowMidnight) {
             refreshTimes.append(sixAM)
         }
         
-        // 3. Next week (for week transitions)
+        // 4. 12 PM (noon refresh)
+        if let noon = calendar.date(byAdding: .hour, value: 12, to: tomorrowMidnight) {
+            refreshTimes.append(noon)
+        }
+        
+        // 5. 6 PM (evening refresh)
+        if let sixPM = calendar.date(byAdding: .hour, value: 18, to: tomorrowMidnight) {
+            refreshTimes.append(sixPM)
+        }
+        
+        // 6. Next week (for week transitions)
         if let nextWeek = calendar.date(byAdding: .weekOfYear, value: 1, to: startDate),
            let nextWeekMidnight = nextMidnight(after: nextWeek) {
             refreshTimes.append(nextWeekMidnight)
         }
         
-        // 4. Next month (for month transitions)
+        // 7. Next month (for month transitions)
         if let nextMonth = calendar.date(byAdding: .month, value: 1, to: startDate),
            let nextMonthMidnight = nextMidnight(after: nextMonth) {
             refreshTimes.append(nextMonthMidnight)
         }
         
-        // 5. Handle Daylight Saving Time transitions
+        // 8. Handle Daylight Saving Time transitions
         if let dstTransition = nextDSTTransition(after: startDate) {
             refreshTimes.append(dstTransition)
         }
         
-        // Sort and deduplicate
-        return Array(Set(refreshTimes)).sorted()
+        // Sort and deduplicate, limit to next 7 days for performance
+        let sortedTimes = Array(Set(refreshTimes)).sorted()
+        let sevenDaysFromNow = calendar.date(byAdding: .day, value: 7, to: startDate) ?? startDate
+        return sortedTimes.filter { $0 <= sevenDaysFromNow }
     }
     
     private func nextMidnight(after date: Date) -> Date? {
@@ -409,21 +439,19 @@ struct SmallContentView: View {
     
     private func isCurrentDay(_ day: Int, isCurrentMonth: Bool) -> Bool {
         let calendar = Calendar.current
-        let today = Date()
         
-        // Get the current day, month, and year
-        let currentDay = calendar.component(.day, from: today)
-        let currentMonth = calendar.component(.month, from: today)
-        let currentYear = calendar.component(.year, from: today)
+        // Use the entry's date instead of current time for proper timeline handling
+        let entryDate = entry.date
         
-        // Check if this day number matches today's day number
+        // Get the day, month, and year from the entry's date
+        let entryDay = calendar.component(.day, from: entryDate)
+        let entryMonth = calendar.component(.month, from: entryDate)
+        let entryYear = calendar.component(.year, from: entryDate)
+        
+        // Check if this day number matches the entry's day number
         // AND if the widget is showing the current month
-        let entryMonth = calendar.component(.month, from: entry.date)
-        let entryYear = calendar.component(.year, from: entry.date)
-        
-        // Only highlight if it's the current day AND the widget is showing the current month
         // AND the day is actually from the current month (not previous/next month)
-        return day == currentDay && currentMonth == entryMonth && currentYear == entryYear && isCurrentMonth
+        return day == entryDay && isCurrentMonth
     }
     
     
@@ -518,21 +546,19 @@ struct MediumContentView: View {
     
     private func isCurrentDay(_ day: Int, isCurrentMonth: Bool) -> Bool {
         let calendar = Calendar.current
-        let today = Date()
         
-        // Get the current day, month, and year
-        let currentDay = calendar.component(.day, from: today)
-        let currentMonth = calendar.component(.month, from: today)
-        let currentYear = calendar.component(.year, from: today)
+        // Use the entry's date instead of current time for proper timeline handling
+        let entryDate = entry.date
         
-        // Check if this day number matches today's day number
+        // Get the day, month, and year from the entry's date
+        let entryDay = calendar.component(.day, from: entryDate)
+        let entryMonth = calendar.component(.month, from: entryDate)
+        let entryYear = calendar.component(.year, from: entryDate)
+        
+        // Check if this day number matches the entry's day number
         // AND if the widget is showing the current month
-        let entryMonth = calendar.component(.month, from: entry.date)
-        let entryYear = calendar.component(.year, from: entry.date)
-        
-        // Only highlight if it's the current day AND the widget is showing the current month
         // AND the day is actually from the current month (not previous/next month)
-        return day == currentDay && currentMonth == entryMonth && currentYear == entryYear && isCurrentMonth
+        return day == entryDay && isCurrentMonth
     }
     
     
@@ -627,21 +653,19 @@ struct LargeContentView: View {
     
     private func isCurrentDay(_ day: Int, isCurrentMonth: Bool) -> Bool {
         let calendar = Calendar.current
-        let today = Date()
         
-        // Get the current day, month, and year
-        let currentDay = calendar.component(.day, from: today)
-        let currentMonth = calendar.component(.month, from: today)
-        let currentYear = calendar.component(.year, from: today)
+        // Use the entry's date instead of current time for proper timeline handling
+        let entryDate = entry.date
         
-        // Check if this day number matches today's day number
+        // Get the day, month, and year from the entry's date
+        let entryDay = calendar.component(.day, from: entryDate)
+        let entryMonth = calendar.component(.month, from: entryDate)
+        let entryYear = calendar.component(.year, from: entryDate)
+        
+        // Check if this day number matches the entry's day number
         // AND if the widget is showing the current month
-        let entryMonth = calendar.component(.month, from: entry.date)
-        let entryYear = calendar.component(.year, from: entry.date)
-        
-        // Only highlight if it's the current day AND the widget is showing the current month
         // AND the day is actually from the current month (not previous/next month)
-        return day == currentDay && currentMonth == entryMonth && currentYear == entryYear && isCurrentMonth
+        return day == entryDay && isCurrentMonth
     }
     
     
