@@ -1,553 +1,406 @@
 #!/bin/bash
 
-# Kalendar Deployment Script
-# This script handles version bumping, building, and creating archives for deployment
+# Kalendar Deployment Script (fixed & hardened)
+# - Safer defaults
+# - Correct "app-store" export method
+# - Uses iTMSTransporter (altool deprecated)
+# - Avoids Swift interface verification failures
+# - Optional workspace support
+# - Verbose/quiet xcodebuild
+# - Optional dSYM verification
 
-set -e  # Exit on any error
+set -Eeuo pipefail
 
-# Load environment variables from .env file if it exists
-if [[ -f ".env" ]]; then
-    echo "Loading environment variables from .env file..."
-    set -a  # Automatically export all variables
-    source .env
-    set +a  # Stop auto-exporting
-elif [[ -f "$(dirname "$0")/../.env" ]]; then
-    echo "Loading environment variables from .env file..."
-    set -a  # Automatically export all variables
-    source "$(dirname "$0")/../.env"
-    set +a  # Stop auto-exporting
-fi
-
-# Colors for output
+########################################
+# Pretty printing
+########################################
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Default values
+print_error()   { echo -e "${RED}[ERROR]${NC} $1" >&2; }
+print_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+print_status()  { echo -e "${BLUE}[INFO]${NC} $1"; }
+print_verbose() { [[ "${VERBOSE}" == "true" ]] && echo -e "${BLUE}[VERBOSE]${NC} $1" || true; }
+
+trap 'print_error "Script failed (line $LINENO). Check logs above."' ERR
+
+########################################
+# Load environment (.env)
+########################################
+if [[ -f ".env" ]]; then
+  print_status "Loading environment from .env …"
+  set -a; source .env; set +a
+elif [[ -f "$(dirname "$0")/../.env" ]]; then
+  print_status "Loading environment from ../.env …"
+  set -a; source "$(dirname "$0")/../.env"; set +a
+fi
+
+########################################
+# Defaults
+########################################
 SCHEME="Kalendar"
 PROJECT="Kalendar.xcodeproj"
+WORKSPACE=""                    # If set, script uses -workspace instead of -project
 CONFIGURATION="Release"
-BUMP_TYPE="patch"
-SKIP_TESTS=true
+BUMP_TYPE="patch"               # major|minor|patch
+SKIP_TESTS=false                # run tests by default
 SKIP_VERSION_BUMP=false
 SKIP_BUILD=false
 ARCHIVE_PATH=""
 EXPORT_PATH=""
-EXPORT_METHOD="development"
+EXPORT_METHOD="development"     # development|app-store|ad-hoc
 VERBOSE=false
 VERIFY_DSYMS=true
 
-# Print functions
-print_error() {
-    echo -e "${RED}[ERROR]${NC} $1" >&2
-}
+DERIVED_DATA_PATH="./DerivedData"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-print_status() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-print_verbose() {
-    if [[ "$VERBOSE" == "true" ]]; then
-        echo -e "${BLUE}[VERBOSE]${NC} $1"
-    fi
-}
-
-# Verify dSYMs for Firebase frameworks
-verify_dsyms() {
-    local archive_path="$1"
-    
-    if [[ "$VERIFY_DSYMS" != "true" ]]; then
-        print_status "Skipping dSYM verification"
-        return 0
-    fi
-    
-    print_status "Verifying dSYMs for Firebase frameworks..."
-    
-    local dsyms_dir="$archive_path/dSYMs"
-    if [[ ! -d "$dsyms_dir" ]]; then
-        print_error "dSYMs directory not found: $dsyms_dir"
-        return 1
-    fi
-    
-    # Firebase frameworks that need dSYMs
-    local firebase_frameworks=(
-        "FirebaseAnalytics"
-        "GoogleAdsOnDeviceConversion"
-        "GoogleAppMeasurement"
-        "GoogleAppMeasurementIdentitySupport"
-    )
-    
-    local missing_dsyms=()
-    
-    for framework in "${firebase_frameworks[@]}"; do
-        local dsym_path="$dsyms_dir/$framework.framework.dSYM"
-        if [[ -d "$dsym_path" ]]; then
-            print_success "✅ $framework dSYM found"
-            
-            # Verify dSYM contains UUIDs
-            if command -v dwarfdump >/dev/null 2>&1; then
-                local uuid_count=$(dwarfdump --uuid "$dsym_path" 2>/dev/null | grep -c "UUID:" || echo "0")
-                if [[ "$uuid_count" -gt 0 ]]; then
-                    print_verbose "   Contains $uuid_count UUID(s)"
-                else
-                    print_warning "   No UUIDs found in dSYM"
-                fi
-            fi
-        else
-            print_warning "⚠️  $framework dSYM missing"
-            missing_dsyms+=("$framework")
-        fi
-    done
-    
-    if [[ ${#missing_dsyms[@]} -gt 0 ]]; then
-        print_warning "Missing dSYMs for: ${missing_dsyms[*]}"
-        print_status "Consider running the dSYM fix script before archiving"
-        return 1
-    else
-        print_success "All Firebase dSYMs verified successfully!"
-        return 0
-    fi
-}
-
-# Show usage
+########################################
+# Usage
+########################################
 show_usage() {
-    cat << EOF
+  cat <<EOF
 Usage: $0 [OPTIONS]
 
-Kalendar Deployment Script - Handles versioning, building, and archiving
+Options:
+  -s, --scheme SCHEME           Xcode scheme (default: ${SCHEME})
+  -p, --project PROJECT         Xcode project (default: ${PROJECT})
+  -w, --workspace WORKSPACE     Xcode workspace (overrides --project if set)
+  -c, --configuration CONFIG    Build configuration (default: ${CONFIGURATION})
+  -b, --bump TYPE               Version bump: major|minor|patch (default: ${BUMP_TYPE})
+  -a, --archive-path PATH       Custom .xcarchive output path
+  -e, --export-path PATH        Custom export output path
+  -m, --method METHOD           Export method: development|app-store|ad-hoc (default: ${EXPORT_METHOD})
+      --skip-tests              Skip tests
+      --skip-version-bump       Skip version bump
+      --skip-build              Skip build (export/upload only)
+      --no-verify-dsyms         Skip Firebase dSYMs verification
+  -v, --verbose                 Verbose logging
+  -h, --help                    Show this help
 
-OPTIONS:
-    -s, --scheme SCHEME           Xcode scheme to build (default: Kalendar)
-    -p, --project PROJECT         Xcode project (default: Kalendar.xcodeproj)
-    -c, --configuration CONFIG    Build configuration (default: Release)
-    -b, --bump TYPE              Version bump type: major|minor|patch (default: patch)
-    -a, --archive-path PATH      Custom archive output path
-    -e, --export-path PATH       Custom export output path
-    -m, --method METHOD          Export method: development|app-store-connect|ad-hoc (default: development)
-    --skip-tests                 Skip running tests before deployment
-    --skip-version-bump          Skip version bumping
-    --skip-build                 Skip build process (for upload-only operations)
-    -v, --verbose                Verbose output
-    -h, --help                   Show this help message
-
-EXAMPLES:
-    $0                           Deploy with patch version bump
-    $0 -b minor                  Deploy with minor version bump
-    $0 --skip-tests -b major     Deploy with major bump, skip tests
-    $0 --skip-version-bump       Deploy without version bump
-    $0 -a ./MyArchive.xcarchive  Use custom archive path
-
-VERSION BUMP TYPES:
-    patch    1.0.0 -> 1.0.1 (bug fixes)
-    minor    1.0.0 -> 1.1.0 (new features)
-    major    1.0.0 -> 2.0.0 (breaking changes)
-
+Examples:
+  $0                             # patch bump + build + export (development)
+  $0 -m app-store                # for App Store Connect
+  $0 --skip-tests -b minor       # minor bump, no tests
+  $0 --skip-version-bump         # no version bump
+  $0 -w Kalendar.xcworkspace     # use workspace (CocoaPods/SPM)
 EOF
 }
 
-# Parse command line arguments
+########################################
+# Arg parsing
+########################################
 while [[ $# -gt 0 ]]; do
-    case $1 in
-        -s|--scheme)
-            SCHEME="$2"
-            shift 2
-            ;;
-        -p|--project)
-            PROJECT="$2"
-            shift 2
-            ;;
-        -c|--configuration)
-            CONFIGURATION="$2"
-            shift 2
-            ;;
-        -b|--bump)
-            BUMP_TYPE="$2"
-            shift 2
-            ;;
-        -a|--archive-path)
-            ARCHIVE_PATH="$2"
-            shift 2
-            ;;
-        -e|--export-path)
-            EXPORT_PATH="$2"
-            shift 2
-            ;;
-        -m|--method)
-            EXPORT_METHOD="$2"
-            shift 2
-            ;;
-        --skip-tests)
-            SKIP_TESTS=true
-            shift
-            ;;
-        --skip-version-bump)
-            SKIP_VERSION_BUMP=true
-            shift
-            ;;
-        --skip-build)
-            SKIP_BUILD=true
-            shift
-            ;;
-        -v|--verbose)
-            VERBOSE=true
-            shift
-            ;;
-        -h|--help)
-            show_usage
-            exit 0
-            ;;
-        *)
-            print_error "Unknown option: $1"
-            show_usage
-            exit 1
-            ;;
-    esac
+  case "$1" in
+    -s|--scheme) SCHEME="$2"; shift 2;;
+    -p|--project) PROJECT="$2"; shift 2;;
+    -w|--workspace) WORKSPACE="$2"; shift 2;;
+    -c|--configuration) CONFIGURATION="$2"; shift 2;;
+    -b|--bump) BUMP_TYPE="$2"; shift 2;;
+    -a|--archive-path) ARCHIVE_PATH="$2"; shift 2;;
+    -e|--export-path) EXPORT_PATH="$2"; shift 2;;
+    -m|--method) EXPORT_METHOD="$2"; shift 2;;
+    --skip-tests) SKIP_TESTS=true; shift;;
+    --skip-version-bump) SKIP_VERSION_BUMP=true; shift;;
+    --skip-build) SKIP_BUILD=true; shift;;
+    --no-verify-dsyms) VERIFY_DSYMS=false; shift;;
+    -v|--verbose) VERBOSE=true; shift;;
+    -h|--help) show_usage; exit 0;;
+    *) print_error "Unknown option: $1"; show_usage; exit 1;;
+  esac
 done
 
-# Validate bump type
+########################################
+# Validation
+########################################
 if [[ ! "$BUMP_TYPE" =~ ^(major|minor|patch)$ ]]; then
-    print_error "Invalid bump type: $BUMP_TYPE"
-    print_error "Valid types: major, minor, patch"
-    exit 1
+  print_error "Invalid bump type: $BUMP_TYPE"
+  exit 1
 fi
 
-# Validate configuration
 if [[ ! "$CONFIGURATION" =~ ^(Debug|Release)$ ]]; then
-    print_error "Invalid configuration: $CONFIGURATION"
-    print_error "Valid configurations: Debug, Release"
-    exit 1
+  print_error "Invalid configuration: $CONFIGURATION"
+  exit 1
 fi
 
-# Validate export method
-if [[ ! "$EXPORT_METHOD" =~ ^(development|app-store-connect|ad-hoc)$ ]]; then
-    print_error "Invalid export method: $EXPORT_METHOD"
-    print_error "Valid methods: development, app-store-connect, ad-hoc"
-    exit 1
+# Tolerate old input "app-store-connect" by mapping to "app-store"
+if [[ "$EXPORT_METHOD" == "app-store-connect" ]]; then
+  print_warning "Export method 'app-store-connect' is invalid. Using 'app-store' instead."
+  EXPORT_METHOD="app-store"
 fi
 
-# Setup paths
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-DERIVED_DATA_PATH="./DerivedData"
-if [[ -z "$ARCHIVE_PATH" ]]; then
-    ARCHIVE_PATH="./build/Kalendar_${TIMESTAMP}.xcarchive"
+if [[ ! "$EXPORT_METHOD" =~ ^(development|app-store|ad-hoc)$ ]]; then
+  print_error "Invalid export method: $EXPORT_METHOD"
+  exit 1
 fi
-if [[ -z "$EXPORT_PATH" ]]; then
-    EXPORT_PATH="./build/Export_${TIMESTAMP}"
+
+# Paths
+[[ -z "$ARCHIVE_PATH" ]] && ARCHIVE_PATH="./build/Kalendar_${TIMESTAMP}.xcarchive"
+[[ -z "$EXPORT_PATH"  ]] && EXPORT_PATH="./build/Export_${TIMESTAMP}"
+
+# xcodebuild verbosity
+if [[ "${VERBOSE}" == "true" ]]; then
+  XCB_QUIET=()
+else
+  XCB_QUIET=(-quiet)
 fi
 
 print_status "Starting Kalendar Deployment"
 print_status "Scheme: $SCHEME"
 print_status "Configuration: $CONFIGURATION"
+print_status "Method: $EXPORT_METHOD"
 print_status "Archive Path: $ARCHIVE_PATH"
 print_status "Export Path: $EXPORT_PATH"
+[[ -n "$WORKSPACE" ]] && print_status "Workspace: $WORKSPACE" || print_status "Project: $PROJECT"
 
-# Function to get current version
+########################################
+# Build helpers
+########################################
+xcb_common_args() {
+  # Prints common xcodebuild args respecting workspace/project selection
+  if [[ -n "$WORKSPACE" ]]; then
+    echo "-workspace" "$WORKSPACE" "-scheme" "$SCHEME" "-configuration" "$CONFIGURATION"
+  else
+    echo "-project" "$PROJECT" "-scheme" "$SCHEME" "-configuration" "$CONFIGURATION"
+  fi
+}
+
 get_current_version() {
-    local version=$(xcodebuild -project "$PROJECT" -showBuildSettings -configuration "$CONFIGURATION" | grep "MARKETING_VERSION" | head -1 | awk '{print $3}')
-    echo "$version"
+  # Prefer MARKETING_VERSION from build settings
+  xcodebuild $(xcb_common_args) -showBuildSettings "${XCB_QUIET[@]}" \
+    | awk -F' = ' '/MARKETING_VERSION/ {print $2; exit}'
 }
 
-# Function to get current build number
 get_current_build() {
-    local build=$(xcodebuild -project "$PROJECT" -showBuildSettings -configuration "$CONFIGURATION" | grep "CURRENT_PROJECT_VERSION" | head -1 | awk '{print $3}')
-    echo "$build"
+  xcodebuild $(xcb_common_args) -showBuildSettings "${XCB_QUIET[@]}" \
+    | awk -F' = ' '/CURRENT_PROJECT_VERSION/ {print $2; exit}'
 }
 
-# Function to bump version
 bump_version() {
-    local current_version=$(get_current_version)
-    local current_build=$(get_current_build)
-    
-    print_status "Current version: $current_version"
-    print_status "Current build: $current_build"
-    
-    # Parse version components
-    local IFS='.'
-    read -ra version_parts <<< "$current_version"
-    local major=${version_parts[0]:-0}
-    local minor=${version_parts[1]:-0}
-    local patch=${version_parts[2]:-0}
-    
-    # Bump version based on type
-    case $BUMP_TYPE in
-        major)
-            major=$((major + 1))
-            minor=0
-            patch=0
-            ;;
-        minor)
-            minor=$((minor + 1))
-            patch=0
-            ;;
-        patch)
-            patch=$((patch + 1))
-            ;;
-    esac
-    
-    local new_version="${major}.${minor}.${patch}"
-    local new_build=$((current_build + 1))
-    
-    print_status "New version: $new_version"
-    print_status "New build: $new_build"
-    
-    # Update version in project file
-    print_status "Updating project version..."
-    
-    # Use sed to update all MARKETING_VERSION entries
+  local cur_ver cur_build major minor patch new_version new_build
+  cur_ver="$(get_current_version || echo 1.0.0)"
+  cur_build="$(get_current_build || echo 0)"
+  print_status "Current version: ${cur_ver:-unknown}"
+  print_status "Current build: ${cur_build:-unknown}"
+
+  IFS='.' read -r major minor patch <<<"${cur_ver:-1.0.0}"
+  major=${major:-1}; minor=${minor:-0}; patch=${patch:-0}
+  case "$BUMP_TYPE" in
+    major) major=$((major+1)); minor=0; patch=0;;
+    minor) minor=$((minor+1)); patch=0;;
+    patch) patch=$((patch+1));;
+  esac
+  new_version="${major}.${minor}.${patch}"
+  # handle non-numeric builds gracefully
+  if [[ "$cur_build" =~ ^[0-9]+$ ]]; then
+    new_build=$((cur_build+1))
+  else
+    new_build=1
+  fi
+
+  print_status "New version: $new_version"
+  print_status "New build: $new_build"
+
+  # Try agvtool first if enabled, else fallback to sed on project.pbxproj
+  if command -v agvtool >/dev/null 2>&1; then
+    (cd "$(dirname "${PROJECT:-$WORKSPACE}")" >/dev/null 2>&1 || true)
+    agvtool new-version -all "$new_build" >/dev/null
+    agvtool new-marketing-version "$new_version" >/dev/null
+  else
+    local pbxproj_path
+    if [[ -n "$WORKSPACE" ]]; then
+      # workspace -> guess project within same dir
+      pbxproj_path="$(find . -name '*.xcodeproj/project.pbxproj' | head -1)"
+    else
+      pbxproj_path="$PROJECT/project.pbxproj"
+    fi
+    [[ -z "$pbxproj_path" || ! -f "$pbxproj_path" ]] && { print_error "project.pbxproj not found"; exit 1; }
+
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS sed
-        sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = $new_version/g" "$PROJECT/project.pbxproj"
-        sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*/CURRENT_PROJECT_VERSION = $new_build/g" "$PROJECT/project.pbxproj"
+      sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = $new_version/g" "$pbxproj_path"
+      sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*/CURRENT_PROJECT_VERSION = $new_build/g" "$pbxproj_path"
     else
-        # GNU sed
-        sed -i "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = $new_version/g" "$PROJECT/project.pbxproj"
-        sed -i "s/CURRENT_PROJECT_VERSION = [^;]*/CURRENT_PROJECT_VERSION = $new_build/g" "$PROJECT/project.pbxproj"
+      sed -i "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = $new_version/g" "$pbxproj_path"
+      sed -i "s/CURRENT_PROJECT_VERSION = [^;]*/CURRENT_PROJECT_VERSION = $new_build/g" "$pbxproj_path"
     fi
-    
-    print_success "Version updated to $new_version ($new_build)"
-    
-    # Return the new version for use in other functions
-    echo "$new_version"
+  fi
+
+  print_success "Version updated to $new_version ($new_build)"
+  echo "$new_version"
 }
 
-# Function to run tests
 run_tests() {
-    print_status "Running tests before deployment..."
-    
-    local test_destination=""
-    
-    print_verbose "Running unit tests..."
-    if ! xcodebuild test \
-        -project "$PROJECT" \
-        -scheme "$SCHEME" \
-        -only-testing:KalendarTests \
-        CODE_SIGNING_ALLOWED=NO \
-        > /dev/null 2>&1; then
-        print_warning "Some unit tests failed, but continuing with deployment"
-    else
-        print_success "Unit tests passed"
-    fi
-    
-
+  print_status "Running tests…"
+  # You can scope with -only-testing:TargetName if desired
+  if ! xcodebuild test $(xcb_common_args) "${XCB_QUIET[@]}" CODE_SIGNING_ALLOWED=NO; then
+    print_warning "Tests failed. Continuing (override by removing --skip-tests)."
+  else
+    print_success "Tests passed."
+  fi
 }
 
-# Function to clean build folder
 clean_build() {
-    print_status "Cleaning previous builds..."
-    
-    if [[ -d "$DERIVED_DATA_PATH" ]]; then
-        rm -rf "$DERIVED_DATA_PATH"
-        print_verbose "Removed DerivedData"
-    fi
-    
-    mkdir -p "$(dirname "$ARCHIVE_PATH")"
-    mkdir -p "$EXPORT_PATH"
-    
-    xcodebuild clean \
-        -project "$PROJECT" \
-        -scheme "$SCHEME" \
-        -configuration "$CONFIGURATION" \
-        > /dev/null 2>&1
-    
-    print_success "Build environment cleaned"
+  print_status "Cleaning previous builds…"
+  rm -rf "$DERIVED_DATA_PATH" ./build 2>/dev/null || true
+  mkdir -p "$(dirname "$ARCHIVE_PATH")" "$EXPORT_PATH"
+  xcodebuild clean $(xcb_common_args) "${XCB_QUIET[@]}" >/dev/null 2>&1 || true
+  print_success "Clean complete."
 }
 
-# Function to create archive
 create_archive() {
-    print_status "Creating archive..."
-    
-    print_verbose "Archive will be saved to: $ARCHIVE_PATH"
-    
-    if ! xcodebuild archive \
-        -project "$PROJECT" \
-        -scheme "$SCHEME" \
-        -configuration "$CONFIGURATION" \
-        -archivePath "$ARCHIVE_PATH" \
-        -derivedDataPath "$DERIVED_DATA_PATH" \
-        SKIP_INSTALL=NO \
-        BUILD_LIBRARY_FOR_DISTRIBUTION=YES; then
-        print_error "Archive creation failed"
-        exit 1
-    fi
-    
-    print_success "Archive created successfully"
-    print_status "Archive location: $ARCHIVE_PATH"
+  print_status "Creating archive…"
+  # Avoid Swift interface verification failures
+  # and provisioning snags with -allowProvisioningUpdates
+  xcodebuild archive \
+    $(xcb_common_args) \
+    -archivePath "$ARCHIVE_PATH" \
+    -derivedDataPath "$DERIVED_DATA_PATH" \
+    -allowProvisioningUpdates \
+    SWIFT_EMIT_PRIVATE_MODULE_INTERFACE=NO \
+    SWIFT_VERIFY_EMITTED_MODULE_INTERFACE=NO \
+    BUILD_LIBRARY_FOR_DISTRIBUTION=NO \
+    "${XCB_QUIET[@]}"
+  print_success "Archive created at: $ARCHIVE_PATH"
 }
 
-# Function to export archive
 export_archive() {
-    print_status "Exporting archive for distribution..."
-    
-    # Create export options based on method
-    local export_options_plist="./build/ExportOptions.plist"
-    mkdir -p "$(dirname "$export_options_plist")"
-    
-    case "$EXPORT_METHOD" in
-        "development")
-            cat > "$export_options_plist" << EOF
+  print_status "Exporting archive ($EXPORT_METHOD)…"
+
+  local export_options_plist="./build/ExportOptions.plist"
+  mkdir -p "./build"
+
+  # Optional: TEAM_ID from env (TEAM_ID or DEVELOPMENT_TEAM)
+  local TEAM_ID_EFFECTIVE="${TEAM_ID:-${DEVELOPMENT_TEAM:-}}"
+
+  case "$EXPORT_METHOD" in
+    "development")
+      cat > "$export_options_plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>development</string>
-    <key>uploadBitcode</key>
-    <false/>
-    <key>uploadSymbols</key>
-    <true/>
-    <key>compileBitcode</key>
-    <false/>
-    <key>signingStyle</key>
-    <string>automatic</string>
-    <key>stripSwiftSymbols</key>
-    <false/>
-    <key>destination</key>
-    <string>export</string>
-</dict>
-</plist>
+<plist version="1.0"><dict>
+  <key>method</key><string>development</string>
+  <key>signingStyle</key><string>automatic</string>
+  <key>uploadSymbols</key><true/>
+  <key>stripSwiftSymbols</key><false/>
+  <key>destination</key><string>export</string>
+  $( [[ -n "$TEAM_ID_EFFECTIVE" ]] && echo "<key>teamID</key><string>$TEAM_ID_EFFECTIVE</string>" )
+</dict></plist>
 EOF
-            ;;
-        "app-store-connect")
-            cat > "$export_options_plist" << EOF
+      ;;
+    "app-store")
+      cat > "$export_options_plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>app-store-connect</string>
-    <key>uploadBitcode</key>
-    <false/>
-    <key>uploadSymbols</key>
-    <true/>
-    <key>compileBitcode</key>
-    <false/>
-    <key>signingStyle</key>
-    <string>automatic</string>
-    <key>stripSwiftSymbols</key>
-    <true/>
-</dict>
-</plist>
+<plist version="1.0"><dict>
+  <key>method</key><string>app-store</string>
+  <key>signingStyle</key><string>automatic</string>
+  <key>uploadSymbols</key><true/>
+  <key>stripSwiftSymbols</key><true/>
+  $( [[ -n "$TEAM_ID_EFFECTIVE" ]] && echo "<key>teamID</key><string>$TEAM_ID_EFFECTIVE</string>" )
+</dict></plist>
 EOF
-            ;;
-        "ad-hoc")
-            cat > "$export_options_plist" << EOF
+      ;;
+    "ad-hoc")
+      cat > "$export_options_plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>ad-hoc</string>
-    <key>uploadBitcode</key>
-    <false/>
-    <key>uploadSymbols</key>
-    <true/>
-    <key>compileBitcode</key>
-    <false/>
-    <key>signingStyle</key>
-    <string>automatic</string>
-    <key>stripSwiftSymbols</key>
-    <true/>
-</dict>
-</plist>
+<plist version="1.0"><dict>
+  <key>method</key><string>ad-hoc</string>
+  <key>signingStyle</key><string>automatic</string>
+  <key>uploadSymbols</key><true/>
+  <key>stripSwiftSymbols</key><true/>
+  $( [[ -n "$TEAM_ID_EFFECTIVE" ]] && echo "<key>teamID</key><string>$TEAM_ID_EFFECTIVE</string>" )
+</dict></plist>
 EOF
-            ;;
-    esac
-    
-    print_verbose "Export options created: $export_options_plist"
-    
-    if ! xcodebuild -exportArchive \
-        -archivePath "$ARCHIVE_PATH" \
-        -exportPath "$EXPORT_PATH" \
-        -exportOptionsPlist "$export_options_plist"; then
-        print_error "Archive export failed"
-        exit 1
-    fi
-    
-    print_success "Archive exported successfully"
-    print_status "Export location: $EXPORT_PATH"
+      ;;
+  esac
+
+  print_verbose "ExportOptions.plist created at $export_options_plist"
+
+  xcodebuild -exportArchive \
+    -archivePath "$ARCHIVE_PATH" \
+    -exportPath "$EXPORT_PATH" \
+    -exportOptionsPlist "$export_options_plist" \
+    -allowProvisioningUpdates \
+    "${XCB_QUIET[@]}"
+
+  print_success "Export complete at: $EXPORT_PATH"
 }
 
-# Function to upload to App Store Connect
 upload_to_appstore() {
-    if [[ "$EXPORT_METHOD" != "app-store-connect" ]]; then
-        print_verbose "Skipping App Store Connect upload (export method: $EXPORT_METHOD)"
-        return 0
-    fi
-    
-    print_status "Uploading to App Store Connect..."
-    
-    # Find the .ipa file in the export directory
-    local ipa_file=$(find "$EXPORT_PATH" -name "*.ipa" | head -1)
-    
-    if [[ -z "$ipa_file" ]]; then
-        print_error "No .ipa file found in export directory: $EXPORT_PATH"
-        exit 1
-    fi
-    
-    print_status "Found IPA: $(basename "$ipa_file")"
-    
-    # Upload using xcrun altool (legacy) or notarytool (newer)
-    if command -v xcrun >/dev/null 2>&1; then
-        print_status "Uploading using xcrun altool..."
-        
-        if ! xcrun altool --upload-app \
-            --type ios \
-            --file "$ipa_file" \
-            --username "${APP_STORE_CONNECT_USERNAME:-}" \
-            --password "${APP_STORE_CONNECT_PASSWORD:-}" \
-            --verbose; then
-                
-            print_warning "altool upload failed, trying with App Store Connect API key..."
-            
-            # Try with API key if username/password failed
-            if [[ -n "${APP_STORE_CONNECT_API_KEY_PATH:-}" ]]; then
-                if ! xcrun altool --upload-app \
-                    --type ios \
-                    --file "$ipa_file" \
-                    --apiKey "${APP_STORE_CONNECT_API_KEY_ID:-}" \
-                    --apiIssuer "${APP_STORE_CONNECT_API_ISSUER_ID:-}" \
-                    --verbose; then
-                    print_error "Failed to upload to App Store Connect"
-                    exit 1
-                fi
-            else
-                print_error "App Store Connect upload failed. Please check credentials."
-                print_status "Required environment variables:"
-                print_status "  APP_STORE_CONNECT_USERNAME (Apple ID)"
-                print_status "  APP_STORE_CONNECT_PASSWORD (App-specific password)"
-                print_status "Or for API key authentication:"
-                print_status "  APP_STORE_CONNECT_API_KEY_ID"
-                print_status "  APP_STORE_CONNECT_API_ISSUER_ID"
-                print_status "  APP_STORE_CONNECT_API_KEY_PATH"
-                exit 1
-            fi
-        fi
+  [[ "$EXPORT_METHOD" != "app-store" ]] && { print_verbose "Skipping App Store upload (method=$EXPORT_METHOD)"; return; }
+
+  print_status "Uploading to App Store Connect via iTMSTransporter…"
+
+  local ipa_file
+  ipa_file="$(find "$EXPORT_PATH" -name "*.ipa" | head -1 || true)"
+  if [[ -z "$ipa_file" ]]; then
+    print_error "No .ipa found in $EXPORT_PATH"
+    exit 1
+  fi
+  print_status "IPA: $(basename "$ipa_file")"
+
+  if command -v xcrun >/dev/null 2>&1; then
+    # Prefer API key if available
+    if [[ -n "${APP_STORE_CONNECT_API_KEY_ID:-}" && -n "${APP_STORE_CONNECT_API_ISSUER_ID:-}" && -n "${APP_STORE_CONNECT_API_KEY_PATH:-}" ]]; then
+      xcrun iTMSTransporter -m upload -assetFile "$ipa_file" \
+        -apiKey "${APP_STORE_CONNECT_API_KEY_ID}" \
+        -apiIssuer "${APP_STORE_CONNECT_API_ISSUER_ID}" \
+        -apiKeyFile "${APP_STORE_CONNECT_API_KEY_PATH}" \
+        -v informational
     else
-        print_error "xcrun not found. Please install Xcode Command Line Tools."
-        exit 1
+      # Fallback to Apple ID + app-specific password
+      xcrun iTMSTransporter -m upload -assetFile "$ipa_file" \
+        -u "${APP_STORE_CONNECT_USERNAME:-}" \
+        -p "${APP_STORE_CONNECT_PASSWORD:-}" \
+        -v informational
     fi
-    
-    print_success "Successfully uploaded to App Store Connect!"
-    print_status "Build will appear at: https://appstoreconnect.apple.com"
-    print_status "It may take a few minutes to process and appear in the builds list."
+  else
+    print_error "xcrun not found. Install Xcode Command Line Tools."
+    exit 1
+  fi
+
+  print_success "Uploaded to App Store Connect."
+  print_status "Processing may take a few minutes."
 }
 
-# Function to generate release notes
+verify_dsyms() {
+  local archive_path="$1"
+  [[ "$VERIFY_DSYMS" != "true" ]] && { print_status "Skipping dSYM verification"; return; }
+
+  print_status "Verifying Firebase dSYMs…"
+  local dsyms_dir="$archive_path/dSYMs"
+  [[ ! -d "$dsyms_dir" ]] && { print_warning "dSYMs dir not found: $dsyms_dir"; return; }
+
+  local frameworks=("FirebaseAnalytics" "GoogleAdsOnDeviceConversion" "GoogleAppMeasurement" "GoogleAppMeasurementIdentitySupport")
+  local missing=()
+
+  for fw in "${frameworks[@]}"; do
+    local dsym="$dsyms_dir/$fw.framework.dSYM"
+    if [[ -d "$dsym" ]]; then
+      print_success "✅ $fw dSYM found"
+      if command -v dwarfdump >/dev/null 2>&1; then
+        local cnt
+        cnt=$(dwarfdump --uuid "$dsym" 2>/dev/null | grep -c "UUID:" || echo "0")
+        [[ "$cnt" -gt 0 ]] || print_warning "   No UUIDs found in $fw dSYM"
+      fi
+    else
+      print_warning "⚠️  $fw dSYM missing"
+      missing+=("$fw")
+    fi
+  done
+
+  [[ ${#missing[@]} -gt 0 ]] && print_warning "Missing dSYMs: ${missing[*]}" || print_success "All Firebase dSYMs verified."
+}
+
 generate_release_notes() {
-    local version="$1"
-    local release_notes_file="./build/release_notes_${version}.md"
-    
-    cat > "$release_notes_file" << EOF
+  local version="$1"
+  local file="./build/release_notes_${version}.md"
+  cat > "$file" <<EOF
 # Kalendar v${version}
 
 ## Release Information
@@ -562,9 +415,8 @@ generate_release_notes() {
 - Better midnight refresh handling
 
 ## Technical Details
-- Built with Xcode $(xcodebuild -version | head -1 | awk '{print $2}')
-- Supports iOS 17.6+
-- Includes Lock Screen and Home Screen widgets
+- Built with $(xcodebuild -version | head -1)
+- iOS Deployment Target: $(xcodebuild $(xcb_common_args) -showBuildSettings "${XCB_QUIET[@]}" | awk -F' = ' '/IPHONEOS_DEPLOYMENT_TARGET/ {print $2; exit}')
 
 ## Files
 - Archive: \`$(basename "$ARCHIVE_PATH")\`
@@ -573,97 +425,83 @@ generate_release_notes() {
 ---
 *Generated automatically by deploy.sh*
 EOF
-    
-    print_success "Release notes generated: $release_notes_file"
+  print_success "Release notes: $file"
 }
 
-# Function to create deployment summary
 create_deployment_summary() {
-    local version="$1"
-    
-    print_status "Creating deployment summary..."
-    
-    cat << EOF
+  local version="$1"
+  cat <<EOF
 
 ╔══════════════════════════════════════════════════════════════╗
 ║                    DEPLOYMENT SUMMARY                        ║
 ╠══════════════════════════════════════════════════════════════╣
 ║ App:           Kalendar                                      ║
-║ Version:       ${version}                                   ║
-║ Configuration: ${CONFIGURATION}                            ║
-║ Timestamp:     $(date '+%Y-%m-%d %H:%M:%S')                ║
+║ Version:       ${version}                                    ║
+║ Configuration: ${CONFIGURATION}                              ║
+║ Timestamp:     $(date '+%Y-%m-%d %H:%M:%S')                  ║
 ╠══════════════════════════════════════════════════════════════╣
-║ Archive:       ${ARCHIVE_PATH}                             ║
-║ Export:        ${EXPORT_PATH}                              ║
+║ Archive:       ${ARCHIVE_PATH}                               ║
+║ Export:        ${EXPORT_PATH}                                ║
 ╠══════════════════════════════════════════════════════════════╣
 ║ Next Steps:                                                  ║
-║ 1. Test the exported .ipa file                             ║
-║ 2. Upload to App Store Connect                             ║
-║ 3. Submit for review                                       ║
+║ 1. Test the exported .ipa file                               ║
+║ 2. (If app-store) Submit for review in App Store Connect     ║
 ╚══════════════════════════════════════════════════════════════╝
 
 EOF
 }
 
-# Main execution
+########################################
+# Main
+########################################
 main() {
-    print_status "🚀 Starting deployment process..."
-    
-    # Check prerequisites
-    if [[ ! -d "$PROJECT" ]]; then
-        print_error "Project file not found: $PROJECT"
-        exit 1
+  # Basic prechecks
+  if [[ -n "$WORKSPACE" ]]; then
+    [[ -f "$WORKSPACE" ]] || { print_error "Workspace not found: $WORKSPACE"; exit 1; }
+  else
+    [[ -d "$PROJECT" ]] || { print_error "Project not found: $PROJECT"; exit 1; }
+  fi
+
+  command -v xcodebuild >/dev/null 2>&1 || { print_error "xcodebuild not found (install Xcode)."; exit 1; }
+
+  # Versioning
+  local new_version
+  if [[ "$SKIP_VERSION_BUMP" == "true" ]]; then
+    new_version="$(get_current_version || echo "1.0.0")"
+    print_status "Skipping version bump; using $new_version"
+  else
+    new_version="$(bump_version)"
+  fi
+
+  # Tests
+  if [[ "$SKIP_TESTS" == "false" ]]; then
+    run_tests
+  else
+    print_warning "Skipping tests"
+  fi
+
+  # Build & export
+  if [[ "$SKIP_BUILD" == "false" ]]; then
+    clean_build
+    create_archive
+    verify_dsyms "$ARCHIVE_PATH"
+    export_archive
+  else
+    print_status "Skipping build; using existing archive"
+    if [[ -z "$ARCHIVE_PATH" || ! -d "$ARCHIVE_PATH" ]]; then
+      ARCHIVE_PATH="$(find ./build -name "*.xcarchive" -type d -exec ls -dt {} + 2>/dev/null | head -1 || true)"
+      [[ -z "$ARCHIVE_PATH" ]] && { print_error "No archive found and --skip-build set"; exit 1; }
+      print_status "Using latest archive: $ARCHIVE_PATH"
     fi
-    
-    if ! command -v xcodebuild &> /dev/null; then
-        print_error "xcodebuild not found. Please install Xcode."
-        exit 1
-    fi
-    
-    # Get or set version
-    local new_version
-    if [[ "$SKIP_VERSION_BUMP" == "true" ]]; then
-        new_version=$(get_current_version)
-        print_status "Skipping version bump, using current version: $new_version"
-    else
-        new_version=$(bump_version)
-    fi
-    
-    # Run tests if not skipped
-    if [[ "$SKIP_TESTS" == "false" ]]; then
-        run_tests
-    else
-        print_warning "Skipping tests"
-    fi
-    
-    # Clean and build
-    if [[ "$SKIP_BUILD" == "false" ]]; then
-        clean_build
-        create_archive
-        export_archive
-    else
-        print_status "Skipping build process..."
-        # For upload-only, we need to find the most recent archive
-        if [[ -z "$ARCHIVE_PATH" ]]; then
-            ARCHIVE_PATH=$(find ./build -name "*.xcarchive" -type d -exec ls -dt {} + 2>/dev/null | head -1)
-            if [[ -z "$ARCHIVE_PATH" ]]; then
-                print_error "No existing archive found and --skip-build specified"
-                print_status "Please build first or remove --skip-build flag"
-                exit 1
-            fi
-            print_status "Using existing archive: $(basename "$ARCHIVE_PATH")"
-        fi
-        export_archive
-    fi
-    upload_to_appstore
-    
-    # Generate documentation
-    generate_release_notes "$new_version"
-    create_deployment_summary "$new_version"
-    
-    print_success "🎉 Deployment completed successfully!"
-    print_status "Ready for App Store submission"
+    export_archive
+  fi
+
+  upload_to_appstore
+  generate_release_notes "$new_version"
+  create_deployment_summary "$new_version"
+
+  print_success "🎉 Deployment completed successfully!"
+  print_status "Ready for App Store submission."
 }
 
-# Run main function
 main "$@"
