@@ -117,19 +117,19 @@ class NotificationManager: ObservableObject {
     }
     
     // MARK: - FCM Token Management
-    func setFCMToken(_ token: String) {
+    func setFCMToken(_ registrationID: String) {
         DispatchQueue.main.async {
-            self.fcmToken = token
+            self.fcmToken = registrationID
         }
         
-        // Here you would typically send the token to your backend
-        sendTokenToServer(token)
+        // Here you would typically send the registration ID to your backend
+        sendRegistrationIDToServer(registrationID)
     }
     
-    private func sendTokenToServer(_ token: String) {
-        // TODO: Implement sending FCM token to your backend
-        // This is where you'd make an API call to associate the token with the user
-        print("FCM Token to send to server: \(token)")
+    private func sendRegistrationIDToServer(_ registrationID: String) {
+        // TODO: Implement sending FCM registration ID to your backend
+        // This is where you'd make an API call to associate the ID with the user
+        print("FCM Registration ID to send to server: \(registrationID)")
     }
     
     // MARK: - Notification Handling

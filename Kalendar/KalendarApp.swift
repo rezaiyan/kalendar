@@ -61,11 +61,11 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     
     // MARK: - MessagingDelegate
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-        print("Firebase registration token: \(String(describing: fcmToken))")
+        print("Firebase registration identifier: \(String(describing: fcmToken))")
         
-        // Store FCM token in NotificationManager
-        if let token = fcmToken {
-            NotificationManager.shared.setFCMToken(token)
+        // Store FCM registration ID in NotificationManager
+        if let registrationID = fcmToken {
+            NotificationManager.shared.setFCMToken(registrationID)
         }
     }
     
@@ -86,7 +86,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                      didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         print("Successfully registered for remote notifications")
         
-        // Set the APNs token for Firebase
+        // Set the APNs device identifier for Firebase
         Messaging.messaging().apnsToken = deviceToken
     }
     

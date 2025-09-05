@@ -71,8 +71,8 @@ class WeatherService: ObservableObject {
     init() {
         print("🏁 WeatherService: Initializing with cache optimization")
         
-        // Validate API key format
-        validateAPIKey()
+        // Validate API credentials format
+        validateAPICredentials()
         
         // Check if we have valid cached weather data
         if let cache = weatherCache, cache.isValid {
@@ -102,7 +102,7 @@ class WeatherService: ObservableObject {
     
     // Optimized method that respects session limits and caching
     private func fetchWeatherOncePerSession(lat: Double, lon: Double) {
-        // Check cache first (using coordinates as cache key)
+        // Check cache first (using coordinates as cache identifier)
         let cacheKey = "\(lat),\(lon)"
         if let cache = weatherCache, cache.isValid {
             print("✅ WeatherService: Using cached weather for coordinates \(lat), \(lon)")
@@ -186,29 +186,29 @@ class WeatherService: ObservableObject {
     
     // MARK: - Private Methods
     
-    // Validate API key format and provide helpful feedback
-    private func validateAPIKey() {
-        print("🔑 WeatherService: Validating API key...")
+    // Validate API credentials format and provide helpful feedback
+    private func validateAPICredentials() {
+        print("🔑 WeatherService: Validating API credentials...")
         
         if apiKey.isEmpty {
-            print("❌ WeatherService: API key is empty!")
+            print("❌ WeatherService: API credentials are empty!")
             DispatchQueue.main.async {
-                self.errorMessage = "API key is not configured. Please add your OpenWeather API key."
+                self.errorMessage = "API credentials not configured. Please add your OpenWeather credentials."
             }
             return
         }
         
-        // OpenWeather API keys are typically 32 characters long and contain only alphanumeric characters
+        // OpenWeather API credentials are typically 32 characters long and contain only alphanumeric characters
         if apiKey.count != 32 {
-            print("⚠️ WeatherService: API key length is \(apiKey.count), expected 32 characters")
+            print("⚠️ WeatherService: API credentials length is \(apiKey.count), expected 32 characters")
         }
         
         let validCharacters = CharacterSet.alphanumerics
         if apiKey.rangeOfCharacter(from: validCharacters.inverted) != nil {
-            print("⚠️ WeatherService: API key contains invalid characters")
+            print("⚠️ WeatherService: API credentials contain invalid characters")
         }
         
-        print("🔑 WeatherService: API key format check complete (length: \(apiKey.count))")
+        print("🔑 WeatherService: API credentials format check complete (length: \(apiKey.count))")
     }
     
     // Detect user's location using multiple methods (once per session)
@@ -477,10 +477,10 @@ class WeatherService: ObservableObject {
                     
                     // Check for specific API errors
                     if responseString.contains("\"cod\":401") {
-                        print("🔑 WeatherService: API key error detected")
+                        print("🔑 WeatherService: API credentials error detected")
                         DispatchQueue.main.async {
                             self?.isLoading = false
-                            self?.errorMessage = "Invalid API key. Please check your OpenWeather API key."
+                            self?.errorMessage = "Invalid API credentials. Please check your OpenWeather credentials."
                         }
                         return
                     } else if responseString.contains("\"cod\":429") {
