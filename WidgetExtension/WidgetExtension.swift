@@ -37,7 +37,6 @@ struct CalendarEntry: TimelineEntry {
     let selectedDate: Date
     let currentMonth: String
     let currentDayName: String
-    let currentTime: String
     let allCalendarDays: [CalendarDay]
     let weekdaySymbols: [String]
     let initialTime: Date
@@ -65,7 +64,6 @@ struct MainWidgetTimelineProvider: TimelineProvider {
             selectedDate: Date(),
             currentMonth: "August",
             currentDayName: "Monday",
-            currentTime: "14:30",
             allCalendarDays: sampleDays,
             weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
             initialTime: Date()
@@ -129,16 +127,11 @@ struct MainWidgetTimelineProvider: TimelineProvider {
         dayNameFormatter.dateFormat = "EEEE"
         dayNameFormatter.timeZone = timeZone
         
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "HH:mm"
-        timeFormatter.timeZone = timeZone
-        
         return CalendarEntry(
             date: date,
             selectedDate: date,
             currentMonth: monthFormatter.string(from: date),
             currentDayName: dayNameFormatter.string(from: date),
-            currentTime: timeFormatter.string(from: date),
             allCalendarDays: calendarDays,
             weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
             initialTime: date
@@ -479,10 +472,6 @@ struct MediumContentView: View {
                 Text(entry.currentMonth)
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundColor(.secondary)
-                
-                Text(entry.currentTime)
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
-                    .foregroundColor(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             
@@ -733,7 +722,6 @@ struct LargeContentView: View {
         selectedDate: Date(),
         currentMonth: "August",
         currentDayName: "Monday",
-        currentTime: "14:30",
         allCalendarDays: [
             CalendarDay(day: 28, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 28)) ?? Date()),
             CalendarDay(day: 29, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 29)) ?? Date()),
@@ -791,7 +779,6 @@ struct LargeContentView: View {
         selectedDate: Date(),
         currentMonth: "August",
         currentDayName: "Monday",
-        currentTime: "14:30",
         allCalendarDays: [
             CalendarDay(day: 28, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 28)) ?? Date()),
             CalendarDay(day: 29, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 29)) ?? Date()),
@@ -864,7 +851,6 @@ extension View {
         selectedDate: Date(),
         currentMonth: "August",
         currentDayName: "Monday",
-        currentTime: "14:30",
         allCalendarDays: [
             // Previous month days (faded)
             CalendarDay(day: 28, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 28)) ?? Date()),
