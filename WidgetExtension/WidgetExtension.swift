@@ -1,906 +1,489 @@
 //
-//  KalendarWidgetExtension.swift
-//  KalendarWidgetExtension
+//  WidgetExtension.swift
+//  Kalendar Widget
 //
 //  Created by Ali Rezaiyan on 18.08.25.
 //
 
 import WidgetKit
 import SwiftUI
+import EventKit
 
-// MARK: - Local type definitions for Main widget
-// Since we can't directly import from Shared folder, we define the types here
-struct CalendarDay: Identifiable, Hashable {
-    let id = UUID()
+// MARK: - Models
+
+struct CalendarWidgetDay: Identifiable {
+    let id: String
     let day: Int
-    let isCurrentMonth: Bool
-    let monthType: MonthType
-    let actualDate: Date // Add the actual date for proper comparison
-    
-    enum MonthType {
-        case previous
-        case current
-        case next
-    }
-    
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-    
-    static func == (lhs: CalendarDay, rhs: CalendarDay) -> Bool {
-        lhs.id == rhs.id
-    }
-}
-
-struct CalendarEntry: TimelineEntry {
     let date: Date
-    let selectedDate: Date
-    let currentMonth: String
-    let currentDayName: String
-    let allCalendarDays: [CalendarDay]
-    let weekdaySymbols: [String]
-    let initialTime: Date
+    let isCurrentMonth: Bool
+    let isToday: Bool
 }
 
-// MARK: - Main Widget Timeline Provider
-struct MainWidgetTimelineProvider: TimelineProvider {
-    typealias Entry = CalendarEntry
-    
-    private let calendar: Calendar
-    private let timeZone: TimeZone
-    
-    init(calendar: Calendar = Calendar.current, timeZone: TimeZone = TimeZone.current) {
-        var cal = calendar
-        cal.firstWeekday = 2 // Monday = 2, Sunday = 1
-        cal.timeZone = timeZone
-        self.calendar = cal
-        self.timeZone = timeZone
-    }
-    
-    func placeholder(in context: Context) -> CalendarEntry {
-        let sampleDays = createSampleCalendarDays()
-        return CalendarEntry(
-            date: Date(),
-            selectedDate: Date(),
-            currentMonth: "August",
-            currentDayName: "Monday",
-            allCalendarDays: sampleDays,
-            weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-            initialTime: Date()
-        )
-    }
-    
-    func getSnapshot(in context: Context, completion: @escaping (CalendarEntry) -> ()) {
-        completion(createEntry(for: Date()))
-    }
-    
-    func getTimeline(in context: Context, completion: @escaping (Timeline<CalendarEntry>) -> ()) {
-        var entries: [CalendarEntry] = []
-        let now = Date()
-        
-        // 1. Current entry (immediate)
-        let currentEntry = createEntry(for: now)
-        entries.append(currentEntry)
-        
-        // 2. Add entry for next 5 minutes (for immediate updates)
-        if let next5Min = calendar.date(byAdding: .minute, value: 5, to: now) {
-            let next5MinEntry = createEntry(for: next5Min)
-            entries.append(next5MinEntry)
-        }
-        
-        // 3. Add entry for next 15 minutes (for quick updates)
-        if let next15Min = calendar.date(byAdding: .minute, value: 15, to: now) {
-            let next15MinEntry = createEntry(for: next15Min)
-            entries.append(next15MinEntry)
-        }
-        
-        // 4. Multiple refresh points for reliability
-        let refreshTimes = calculateRefreshTimes(from: now)
-        for refreshTime in refreshTimes {
-            let entry = createEntry(for: refreshTime)
-            entries.append(entry)
-        }
-        
-        // Use .atEnd policy to ensure refresh when timeline ends
-        // This ensures the widget refreshes when the timeline expires
-        let timeline = Timeline(entries: entries, policy: .atEnd)
-        
-        #if DEBUG
-        print("📅 Main Widget Timeline created with \(entries.count) entries:")
-        for (index, entry) in entries.enumerated() {
-            print("  \(index + 1). \(formatDate(entry.date))")
-        }
-        #endif
-        
-        completion(timeline)
-    }
-    
-    private func createEntry(for date: Date) -> CalendarEntry {
-        let calendarDays = generateCalendarDays(for: date)
-        
-        // Format date components
-        let monthFormatter = DateFormatter()
-        monthFormatter.dateFormat = "MMMM"
-        monthFormatter.timeZone = timeZone
-        
-        let dayNameFormatter = DateFormatter()
-        dayNameFormatter.dateFormat = "EEEE"
-        dayNameFormatter.timeZone = timeZone
-        
-        return CalendarEntry(
-            date: date,
-            selectedDate: date,
-            currentMonth: monthFormatter.string(from: date),
-            currentDayName: dayNameFormatter.string(from: date),
-            allCalendarDays: calendarDays,
-            weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-            initialTime: date
-        )
-    }
-    
-    private func calculateRefreshTimes(from startDate: Date) -> [Date] {
-        var refreshTimes: [Date] = []
-        
-        // Calculate next midnight in the widget's timezone
-        guard let tomorrowMidnight = nextMidnight(after: startDate) else {
-            return []
-        }
-        
-        // Add midnight refresh (most important for day changes)
-        refreshTimes.append(tomorrowMidnight)
-        
-        // Add multiple refresh points for maximum reliability
-        
-        // 1. 30 minutes after midnight (backup for midnight refresh)
-        if let midnight30 = calendar.date(byAdding: .minute, value: 30, to: tomorrowMidnight) {
-            refreshTimes.append(midnight30)
-        }
-        
-        // 2. 1 hour after midnight (backup)
-        if let oneAM = calendar.date(byAdding: .hour, value: 1, to: tomorrowMidnight) {
-            refreshTimes.append(oneAM)
-        }
-        
-        // 3. 6 AM (morning refresh)
-        if let sixAM = calendar.date(byAdding: .hour, value: 6, to: tomorrowMidnight) {
-            refreshTimes.append(sixAM)
-        }
-        
-        // 4. 12 PM (noon refresh)
-        if let noon = calendar.date(byAdding: .hour, value: 12, to: tomorrowMidnight) {
-            refreshTimes.append(noon)
-        }
-        
-        // 5. 6 PM (evening refresh)
-        if let sixPM = calendar.date(byAdding: .hour, value: 18, to: tomorrowMidnight) {
-            refreshTimes.append(sixPM)
-        }
-        
-        // 6. Next week (for week transitions)
-        if let nextWeek = calendar.date(byAdding: .weekOfYear, value: 1, to: startDate),
-           let nextWeekMidnight = nextMidnight(after: nextWeek) {
-            refreshTimes.append(nextWeekMidnight)
-        }
-        
-        // 7. Next month (for month transitions)
-        if let nextMonth = calendar.date(byAdding: .month, value: 1, to: startDate),
-           let nextMonthMidnight = nextMidnight(after: nextMonth) {
-            refreshTimes.append(nextMonthMidnight)
-        }
-        
-        // 8. Handle Daylight Saving Time transitions
-        if let dstTransition = nextDSTTransition(after: startDate) {
-            refreshTimes.append(dstTransition)
-        }
-        
-        // Sort and deduplicate, limit to next 7 days for performance
-        let sortedTimes = Array(Set(refreshTimes)).sorted()
-        let sevenDaysFromNow = calendar.date(byAdding: .day, value: 7, to: startDate) ?? startDate
-        return sortedTimes.filter { $0 <= sevenDaysFromNow }
-    }
-    
-    private func nextMidnight(after date: Date) -> Date? {
-        // Get the start of the next day in the specified timezone
-        let startOfToday = calendar.startOfDay(for: date)
-        return calendar.date(byAdding: .day, value: 1, to: startOfToday)
-    }
-    
-    private func nextDSTTransition(after date: Date) -> Date? {
-        // Check for DST transitions in the next 3 months
-        let threeMonthsLater = calendar.date(byAdding: .month, value: 3, to: date) ?? date
-        
-        let interval = DateInterval(start: date, end: threeMonthsLater)
-        let transitions = timeZone.nextDaylightSavingTimeTransition(after: interval.start)
-        
-        if let transition = transitions, interval.contains(transition) {
-            // Return the midnight after the DST transition
-            return nextMidnight(after: transition)
-        }
-        
-        return nil
-    }
-    
-    private func generateCalendarDays(for date: Date) -> [CalendarDay] {
-        let startOfMonth = calendar.dateInterval(of: .month, for: date)?.start ?? date
-        let firstWeekday = calendar.component(.weekday, from: startOfMonth)
-        let daysInMonth = calendar.range(of: .day, in: .month, for: date)?.count ?? 0
-        
-        var allCalendarDays: [CalendarDay] = []
-        
-        // Convert Sunday=1, Monday=2, etc. to Monday=0, Tuesday=1, etc.
-        let mondayBasedWeekday = firstWeekday == 1 ? 6 : firstWeekday - 2
-        
-        // Previous month days
-        if mondayBasedWeekday > 0 {
-            let previousMonth = calendar.date(byAdding: .month, value: -1, to: date) ?? date
-            let daysInPreviousMonth = calendar.range(of: .day, in: .month, for: previousMonth)?.count ?? 0
-            let startDay = daysInPreviousMonth - mondayBasedWeekday + 1
-            
-            for day in startDay...daysInPreviousMonth {
-                allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .previous, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: previousMonth), month: calendar.component(.month, from: previousMonth), day: day)) ?? Date()))
-            }
-        }
-        
-        // Current month days
-        for day in 1...daysInMonth {
-            allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: date), month: calendar.component(.month, from: date), day: day)) ?? Date()))
-        }
-        
-        // Next month days (to complete the grid)
-        let totalDaysIncludingCurrent = mondayBasedWeekday + daysInMonth
-        let weeksNeeded = Int(ceil(Double(totalDaysIncludingCurrent) / 7.0))
-        let totalDaysInGrid = weeksNeeded * 7
-        let remainingDays = totalDaysInGrid - totalDaysIncludingCurrent
-        
-        if remainingDays > 0 {
-            let nextMonth = calendar.date(byAdding: .month, value: 1, to: date) ?? date
-            let daysInNextMonth = calendar.range(of: .day, in: .month, for: nextMonth)?.count ?? 0
-            let maxDaysToShow = min(remainingDays, daysInNextMonth)
-            
-            for day in 1...maxDaysToShow {
-                allCalendarDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: day)) ?? Date()))
-            }
-        }
-        
-        return allCalendarDays
-    }
-    
-    private func createSampleCalendarDays() -> [CalendarDay] {
-        var sampleDays: [CalendarDay] = []
-        let now = Date()
-        let previousMonth = calendar.date(byAdding: .month, value: -1, to: now) ?? now
-        let nextMonth = calendar.date(byAdding: .month, value: 1, to: now) ?? now
-        
-        // Previous month days
-        for day in [28, 29, 30, 31] {
-            sampleDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .previous, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: previousMonth), month: calendar.component(.month, from: previousMonth), day: day)) ?? Date()))
-        }
-        
-        // Current month days
-        for day in 1...31 {
-            sampleDays.append(CalendarDay(day: day, isCurrentMonth: true, monthType: .current, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: calendar.component(.month, from: now), day: day)) ?? Date()))
-        }
-        
-        // Next month days
-        for day in [1, 2, 3, 4, 5, 6, 7] {
-            sampleDays.append(CalendarDay(day: day, isCurrentMonth: false, monthType: .next, actualDate: calendar.date(from: DateComponents(year: calendar.component(.year, from: nextMonth), month: calendar.component(.month, from: nextMonth), day: day)) ?? Date()))
-        }
-        
-        return sampleDays
-    }
-    
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        formatter.timeZone = timeZone
-        return formatter.string(from: date)
-    }
+struct KalendarEntry: TimelineEntry {
+    let date: Date
+    let days: [CalendarWidgetDay]
+    let monthTitle: String
+    let todayEvents: [String]
+    let nextEvent: String?
 }
 
-// MARK: - Main Calendar Widget
-struct WidgetExtension: Widget {
-    let kind: String = "KalendarWidgetExtension"
+// MARK: - Timeline Provider
 
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: MainWidgetTimelineProvider()) { entry in
-            KalendarWidgetExtensionEntryView(entry: entry)
-        }
-        .configurationDisplayName("Kalendar")
-        .description("Beautiful monthly calendar widget")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
-        .contentMarginsDisabled()
-    }
-}
+struct KalendarProvider: TimelineProvider {
+    private let eventStore = EKEventStore()
 
-struct KalendarWidgetExtensionEntryView: View {
-    var entry: CalendarEntry
-    @Environment(\.widgetFamily) var family
-    @Environment(\.colorScheme) var colorScheme
-    
-    var body: some View {
-        Group {
-            switch family {
-            case .systemSmall:
-                SmallContentView(entry: entry)
-            case .systemMedium:
-                MediumContentView(entry: entry)
-            case .systemLarge:
-                LargeContentView(entry: entry)
-            default:
-                LargeContentView(entry: entry)
-            }
-        }
-        .widgetBackground(backgroundColor(for: colorScheme))
+    func placeholder(in context: Context) -> KalendarEntry {
+        makeEntry(for: Date())
     }
-    
-    private func backgroundColor(for colorScheme: ColorScheme) -> Color {
-        switch colorScheme {
-        case .light:
-            return Color(.systemBackground)
-        case .dark:
-            return Color(.systemBackground)
-        @unknown default:
-            return Color(.systemBackground)
-        }
-    }
-}
 
+    func getSnapshot(in context: Context, completion: @escaping (KalendarEntry) -> Void) {
+        completion(makeEntry(for: Date()))
+    }
 
-
-// MARK: - Small Widget Content View
-struct SmallContentView: View {
-    let entry: CalendarEntry
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            // Compact header
-            VStack(alignment: .leading, spacing: 4) {
-                Text(entry.currentDayName)
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
-                
-                Text(entry.currentMonth)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            
-            // Compact calendar grid (3x3 showing current week + next week preview)
-            compactCalendarGrid
-            
-            Spacer()
-        }
-        .padding(6)
-    }
-    
-    private var compactCalendarGrid: some View {
-        VStack(spacing: 4) {
-            // Weekday headers (abbreviated)
-            HStack(spacing: 0) {
-                ForEach(Array(["M", "T", "W", "T", "F", "S", "S"].enumerated()), id: \.offset) { index, day in
-                    Text(day)
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            
-            // Compact 3x3 grid showing current week and next week preview
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 7), spacing: 1) {
-                ForEach(0..<21, id: \.self) { index in
-                    if index < entry.allCalendarDays.count {
-                        let calendarDay = entry.allCalendarDays[index]
-                        compactDayView(for: calendarDay.day, isCurrentMonth: calendarDay.isCurrentMonth)
-                    }
-                }
-            }
-        }
-    }
-    
-    private func compactDayView(for day: Int, isCurrentMonth: Bool) -> some View {
-        VStack(spacing: 2) {
-            Text("\(day)")
-                .font(.system(size: 11, weight: isCurrentDay(day, isCurrentMonth: isCurrentMonth) ? .bold : .medium, design: .rounded))
-                .foregroundColor(isCurrentDay(day, isCurrentMonth: isCurrentMonth) ? .white : (isCurrentMonth ? .primary : .secondary))
-                .opacity(isCurrentMonth ? 1.0 : 0.4)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .aspectRatio(1, contentMode: .fit)
-        .padding(2)
-        .background(
-            Group {
-                if isCurrentDay(day, isCurrentMonth: isCurrentMonth) {
-                    RoundedRectangle(cornerRadius: 5)
-                        .fill(
-                            LinearGradient(
-                                colors: [.blue, .blue.opacity(0.8)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                } else {
-                    Color.clear
-                }
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 5))
-    }
-    
-    private func isCurrentDay(_ day: Int, isCurrentMonth: Bool) -> Bool {
+    func getTimeline(in context: Context, completion: @escaping (Timeline<KalendarEntry>) -> Void) {
         let calendar = Calendar.current
-        
-        // Use the entry's date instead of current time for proper timeline handling
-        let entryDate = entry.date
-        
-        // Get the day, month, and year from the entry's date
-        let entryDay = calendar.component(.day, from: entryDate)
-        let entryMonth = calendar.component(.month, from: entryDate)
-        let entryYear = calendar.component(.year, from: entryDate)
-        
-        // Check if this day number matches the entry's day number
-        // AND if the widget is showing the current month
-        // AND the day is actually from the current month (not previous/next month)
-        return day == entryDay && isCurrentMonth
+        let now = Date()
+        var entries: [KalendarEntry] = []
+
+        // Entry for right now
+        entries.append(makeEntry(for: now))
+
+        // Entries at midnight + 1 AM (DST safety) for the next 3 days
+        // This guarantees the correct day is highlighted even if
+        // WidgetKit delays the refresh.
+        for dayOffset in 1...3 {
+            let startOfToday = calendar.startOfDay(for: now)
+            if let midnight = calendar.date(byAdding: .day, value: dayOffset, to: startOfToday) {
+                entries.append(makeEntry(for: midnight))
+                // 1 AM entry covers DST transitions (clocks change at 2 AM)
+                if let oneAM = calendar.date(byAdding: .hour, value: 1, to: midnight) {
+                    entries.append(makeEntry(for: oneAM))
+                }
+            }
+        }
+
+        // Ask WidgetKit to call us again in 3 days
+        let refreshDate = calendar.date(byAdding: .day, value: 3, to: calendar.startOfDay(for: now))
+            ?? calendar.date(byAdding: .hour, value: 72, to: now)!
+        completion(Timeline(entries: entries, policy: .after(refreshDate)))
     }
-    
-    
-    private var dayGradient: LinearGradient {
-        LinearGradient(
-            colors: [.blue, .purple],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
+
+    // MARK: - Entry Generation
+
+    private func makeEntry(for date: Date) -> KalendarEntry {
+        var calendar = Calendar(identifier: .gregorian)
+        let startMonday = UserDefaults.standard.object(forKey: "startOfWeekMonday") == nil
+            ? true
+            : UserDefaults.standard.bool(forKey: "startOfWeekMonday")
+        calendar.firstWeekday = startMonday ? 2 : 1
+
+        let days = generateDays(for: date, calendar: calendar)
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        let monthTitle = formatter.string(from: date)
+
+        let (todayEvents, nextEvent) = fetchEvents(for: date, calendar: calendar)
+
+        return KalendarEntry(
+            date: date,
+            days: days,
+            monthTitle: monthTitle,
+            todayEvents: todayEvents,
+            nextEvent: nextEvent
         )
+    }
+
+    private func generateDays(for date: Date, calendar: Calendar) -> [CalendarWidgetDay] {
+        let startOfMonth = calendar.dateInterval(of: .month, for: date)?.start ?? date
+        let daysInMonth = calendar.range(of: .day, in: .month, for: date)?.count ?? 30
+        let firstWeekday = calendar.component(.weekday, from: startOfMonth)
+        // Use the entry date as "today" so future entries highlight the correct day
+        let today = date
+
+        let offset: Int
+        if calendar.firstWeekday == 2 {
+            offset = firstWeekday == 1 ? 6 : firstWeekday - 2
+        } else {
+            offset = firstWeekday - 1
+        }
+
+        var days: [CalendarWidgetDay] = []
+
+        // Previous month padding
+        if offset > 0 {
+            let prevMonth = calendar.date(byAdding: .month, value: -1, to: date)!
+            let prevDays = calendar.range(of: .day, in: .month, for: prevMonth)?.count ?? 30
+            for i in (prevDays - offset + 1)...prevDays {
+                let d = calendar.date(from: DateComponents(
+                    year: calendar.component(.year, from: prevMonth),
+                    month: calendar.component(.month, from: prevMonth),
+                    day: i
+                ))!
+                days.append(CalendarWidgetDay(id: "p\(i)", day: i, date: d, isCurrentMonth: false, isToday: false))
+            }
+        }
+
+        // Current month
+        for i in 1...daysInMonth {
+            let d = calendar.date(from: DateComponents(
+                year: calendar.component(.year, from: startOfMonth),
+                month: calendar.component(.month, from: startOfMonth),
+                day: i
+            ))!
+            days.append(CalendarWidgetDay(
+                id: "c\(i)", day: i, date: d,
+                isCurrentMonth: true,
+                isToday: calendar.isDate(d, inSameDayAs: today)
+            ))
+        }
+
+        // Next month padding (fill to 42 cells)
+        let remaining = 42 - days.count
+        if remaining > 0 && remaining <= 14 {
+            let nextMonth = calendar.date(byAdding: .month, value: 1, to: date)!
+            for i in 1...remaining {
+                let d = calendar.date(from: DateComponents(
+                    year: calendar.component(.year, from: nextMonth),
+                    month: calendar.component(.month, from: nextMonth),
+                    day: i
+                ))!
+                days.append(CalendarWidgetDay(id: "n\(i)", day: i, date: d, isCurrentMonth: false, isToday: false))
+            }
+        }
+
+        return days
+    }
+
+    private func fetchEvents(for date: Date, calendar: Calendar) -> (titles: [String], next: String?) {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        guard status == .fullAccess || status == .authorized else { return ([], nil) }
+
+        let start = calendar.startOfDay(for: date)
+        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return ([], nil) }
+        let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: nil)
+        let events = eventStore.events(matching: predicate).sorted { $0.startDate < $1.startDate }
+
+        let titles = events.prefix(5).map { $0.title ?? "Untitled" }
+        let nextEvent = events.first { $0.startDate > date }?.title
+
+        return (titles, nextEvent)
     }
 }
 
-// MARK: - Medium Widget Content View
-struct MediumContentView: View {
-    let entry: CalendarEntry
-    
+// MARK: - Weekday Symbols
+
+private func weekdaySymbols() -> [String] {
+    let startMonday = UserDefaults.standard.object(forKey: "startOfWeekMonday") == nil
+        ? true
+        : UserDefaults.standard.bool(forKey: "startOfWeekMonday")
+    return startMonday ? ["M", "T", "W", "T", "F", "S", "S"] : ["S", "M", "T", "W", "T", "F", "S"]
+}
+
+// MARK: - Small Widget
+
+struct SmallCalendarView: View {
+    let entry: KalendarEntry
+
     var body: some View {
-        HStack(spacing: 10) {
-            // Left side: Date info
-            VStack(alignment: .leading, spacing: 6) {
-                Text(entry.currentDayName)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
-                
-                Text(entry.currentMonth)
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: 4) {
+            Text(entry.monthTitle.components(separatedBy: " ").first ?? "")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Text("\(Calendar.current.component(.day, from: entry.date))")
+                .font(.system(size: 48, weight: .bold, design: .rounded))
+
+            Text(dayName(entry.date))
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+
+            Spacer(minLength: 0)
+
+            if let next = entry.nextEvent {
+                HStack(spacing: 4) {
+                    Circle().fill(Color.accentColor).frame(width: 5, height: 5)
+                    Text(next)
+                        .font(.caption2)
+                        .lineLimit(1)
+                }
+            } else if !entry.todayEvents.isEmpty {
+                HStack(spacing: 4) {
+                    Circle().fill(Color.accentColor).frame(width: 5, height: 5)
+                    Text("\(entry.todayEvents.count) event\(entry.todayEvents.count == 1 ? "" : "s")")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            
-            // Right side: Compact calendar
-            VStack(spacing: 6) {
-                // Weekday headers
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .containerBackground(.background, for: .widget)
+    }
+
+    private func dayName(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE"
+        return f.string(from: date)
+    }
+}
+
+// MARK: - Medium Widget
+
+struct MediumCalendarView: View {
+    let entry: KalendarEntry
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
+
+    var body: some View {
+        HStack(spacing: 8) {
+            // Mini calendar
+            VStack(spacing: 2) {
+                Text(entry.monthTitle)
+                    .font(.caption2.weight(.bold))
+                    .lineLimit(1)
+
                 HStack(spacing: 0) {
-                    ForEach(Array(["M", "T", "W", "T", "F", "S", "S"].enumerated()), id: \.offset) { index, day in
-                        Text(day)
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundColor(.secondary)
+                    ForEach(weekdaySymbols().indices, id: \.self) { i in
+                        Text(weekdaySymbols()[i])
+                            .font(.system(size: 7, weight: .medium))
+                            .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
                     }
                 }
-                
-                // 4x4 calendar grid
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 2) {
-                    ForEach(0..<28, id: \.self) { index in
-                        if index < entry.allCalendarDays.count {
-                            let calendarDay = entry.allCalendarDays[index]
-                            mediumDayView(for: calendarDay.day, isCurrentMonth: calendarDay.isCurrentMonth)
+
+                LazyVGrid(columns: columns, spacing: 1) {
+                    ForEach(entry.days) { day in
+                        ZStack {
+                            if day.isToday {
+                                Circle()
+                                    .fill(Color.accentColor)
+                                    .frame(width: 14, height: 14)
+                            }
+                            Text("\(day.day)")
+                                .font(.system(size: 9, weight: day.isToday ? .bold : .regular))
+                                .foregroundStyle(
+                                    day.isCurrentMonth
+                                        ? (day.isToday ? Color.white : Color.primary)
+                                        : Color.secondary.opacity(0.3)
+                                )
+                        }
+                        .frame(width: 16, height: 14)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+
+            Rectangle()
+                .fill(Color.secondary.opacity(0.2))
+                .frame(width: 1)
+                .padding(.vertical, 4)
+
+            // Events
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Today")
+                    .font(.caption2.weight(.bold))
+
+                if entry.todayEvents.isEmpty {
+                    Text("No events")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(entry.todayEvents.prefix(4), id: \.self) { title in
+                        HStack(spacing: 3) {
+                            Circle().fill(Color.accentColor).frame(width: 4, height: 4)
+                            Text(title)
+                                .font(.system(size: 10))
+                                .lineLimit(1)
+                        }
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .containerBackground(.background, for: .widget)
+    }
+}
+
+// MARK: - Large Widget
+
+struct LargeCalendarView: View {
+    let entry: KalendarEntry
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 7)
+
+    var body: some View {
+        VStack(spacing: 8) {
+            // Month title
+            Text(entry.monthTitle)
+                .font(.system(.headline, design: .rounded))
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Weekday headers
+            HStack(spacing: 0) {
+                ForEach(weekdaySymbols().indices, id: \.self) { i in
+                    Text(weekdaySymbols()[i])
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+
+            // Calendar grid
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach(entry.days) { day in
+                    ZStack {
+                        if day.isToday {
+                            Circle()
+                                .fill(Color.accentColor)
+                        }
+                        Text("\(day.day)")
+                            .font(.system(size: 13, weight: day.isToday ? .bold : .regular, design: .rounded))
+                            .foregroundStyle(
+                                day.isCurrentMonth
+                                    ? (day.isToday ? Color.white : Color.primary)
+                                    : Color.secondary.opacity(0.3)
+                            )
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 28)
+                }
+            }
+
+            Divider()
+
+            // Events
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Today's Events")
+                    .font(.caption.weight(.bold))
+
+                if entry.todayEvents.isEmpty {
+                    Text("No events scheduled")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(entry.todayEvents.prefix(3), id: \.self) { title in
+                        HStack(spacing: 6) {
+                            Circle().fill(Color.accentColor).frame(width: 5, height: 5)
+                            Text(title)
+                                .font(.caption)
+                                .lineLimit(1)
                         }
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer(minLength: 0)
         }
-        .padding(10)
-    }
-    
-    private func mediumDayView(for day: Int, isCurrentMonth: Bool) -> some View {
-        VStack(spacing: 3) {
-            Text("\(day)")
-                .font(.system(size: 12, weight: isCurrentDay(day, isCurrentMonth: isCurrentMonth) ? .bold : .medium, design: .rounded))
-                .foregroundColor(isCurrentDay(day, isCurrentMonth: isCurrentMonth) ? .white : (isCurrentMonth ? .primary : .secondary))
-                .opacity(isCurrentMonth ? 1.0 : 0.4)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .aspectRatio(1, contentMode: .fit)
-        .padding(3)
-        .background(
-            Group {
-                if isCurrentDay(day, isCurrentMonth: isCurrentMonth) {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(
-                            LinearGradient(
-                                colors: [.blue, .blue.opacity(0.8)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                } else {
-                    Color.clear
-                }
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-    }
-    
-    private func isCurrentDay(_ day: Int, isCurrentMonth: Bool) -> Bool {
-        let calendar = Calendar.current
-        
-        // Use the entry's date instead of current time for proper timeline handling
-        let entryDate = entry.date
-        
-        // Get the day, month, and year from the entry's date
-        let entryDay = calendar.component(.day, from: entryDate)
-        let entryMonth = calendar.component(.month, from: entryDate)
-        let entryYear = calendar.component(.year, from: entryDate)
-        
-        // Check if this day number matches the entry's day number
-        // AND if the widget is showing the current month
-        // AND the day is actually from the current month (not previous/next month)
-        return day == entryDay && isCurrentMonth
-    }
-    
-    
-    private var dayGradient: LinearGradient {
-        LinearGradient(
-            colors: [.blue, .purple],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+        .padding()
+        .containerBackground(.background, for: .widget)
     }
 }
 
-// MARK: - Large Widget (Replicates ContentView with larger sizes)
-struct LargeContentView: View {
-    let entry: CalendarEntry
-    
+// MARK: - Lock Screen Widgets
+
+struct LockScreenCircularView: View {
+    let entry: KalendarEntry
+
     var body: some View {
-        VStack(spacing: 0) {
-            headerSection
-            calendarSection
-            Spacer()
-            bottomInfoSection
-        }
-        .padding(12)
-    }
-    
-    // MARK: - Header Section (Same as ContentView, larger)
-    private var headerSection: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(entry.currentDayName)
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
-            
-                Text(entry.currentMonth)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
-            }
-        
-            Spacer()
-        }
-        .padding(.top, 12)
-        .padding(.bottom, 20)
-    }
-    
-    // MARK: - Calendar Section (Same as ContentView, larger)
-    private var calendarSection: some View {
-        VStack(spacing: 16) {
-            weekdayHeaders
-            calendarGrid
-        }
-    }
-    
-    // MARK: - Weekday Headers (Same as ContentView, larger)
-    private var weekdayHeaders: some View {
-        HStack(spacing: 0) {
-            ForEach(entry.weekdaySymbols, id: \.self) { day in
-                Text(day)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity)
+        ZStack {
+            AccessoryWidgetBackground()
+            VStack(spacing: 0) {
+                Text("\(Calendar.current.component(.day, from: entry.date))")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                Text(shortMonth(entry.date))
+                    .font(.system(size: 9, weight: .medium))
+                    .textCase(.uppercase)
             }
         }
-        .padding(.horizontal, 16)
+        .containerBackground(.background, for: .widget)
     }
-    
-    // MARK: - Calendar Grid (Same as ContentView, larger)
-    private var calendarGrid: some View {
-        LazyVGrid(columns: calendarColumns, spacing: 6) {
-            ForEach(entry.allCalendarDays) { calendarDay in
-                calendarDayView(for: calendarDay.day, isCurrentMonth: calendarDay.isCurrentMonth)
+
+    private func shortMonth(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "MMM"
+        return f.string(from: date)
+    }
+}
+
+struct LockScreenRectangularView: View {
+    let entry: KalendarEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Image(systemName: "calendar")
+                    .font(.caption2)
+                Text(dayAndMonth(entry.date))
+                    .font(.caption2.weight(.semibold))
             }
-        }
-        .padding(.horizontal, 16)
-    }
-    
-    // MARK: - Calendar Day View (Same as ContentView, larger)
-    private func calendarDayView(for day: Int, isCurrentMonth: Bool) -> some View {
-        VStack(spacing: 4) {
-            Text("\(day)")
-                .font(.system(size: 15, weight: isCurrentDay(day, isCurrentMonth: isCurrentMonth) ? .bold : .medium, design: .rounded))
-                .foregroundColor(isCurrentDay(day, isCurrentMonth: isCurrentMonth) ? .white : (isCurrentMonth ? .primary : .secondary))
-                .opacity(isCurrentMonth ? 1.0 : 0.4)
-            
-        }
-        .frame(width: 28, height: 32)
-        .padding(4)
-        .background(dayBackground(for: day, isCurrentMonth: isCurrentMonth))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(dayBorder(for: day, isCurrentMonth: isCurrentMonth))
-    }
-    
-    private func isCurrentDay(_ day: Int, isCurrentMonth: Bool) -> Bool {
-        let calendar = Calendar.current
-        
-        // Use the entry's date instead of current time for proper timeline handling
-        let entryDate = entry.date
-        
-        // Get the day, month, and year from the entry's date
-        let entryDay = calendar.component(.day, from: entryDate)
-        let entryMonth = calendar.component(.month, from: entryDate)
-        let entryYear = calendar.component(.year, from: entryDate)
-        
-        // Check if this day number matches the entry's day number
-        // AND if the widget is showing the current month
-        // AND the day is actually from the current month (not previous/next month)
-        return day == entryDay && isCurrentMonth
-    }
-    
-    
-    // MARK: - Day Background (Same as ContentView)
-    private func dayBackground(for day: Int, isCurrentMonth: Bool) -> some View {
-        Group {
-            if isCurrentDay(day, isCurrentMonth: isCurrentMonth) {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(
-                        LinearGradient(
-                            colors: [.blue, .blue.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+
+            if let next = entry.nextEvent {
+                Text(next)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(2)
+            } else if !entry.todayEvents.isEmpty {
+                Text("\(entry.todayEvents.count) event\(entry.todayEvents.count == 1 ? "" : "s") today")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             } else {
-                Color.clear
+                Text("No upcoming events")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
-    }
-    
-    // MARK: - Day Border (Same as ContentView)
-    private func dayBorder(for day: Int, isCurrentMonth: Bool) -> some View {
-        RoundedRectangle(cornerRadius: 6)
-            .stroke(Color.clear, lineWidth: 0)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .containerBackground(.background, for: .widget)
     }
 
-    // MARK: - Bottom Info Section (Same as ContentView, larger)
-    private var bottomInfoSection: some View {
-        VStack(spacing: 10) {
-            // Empty space for visual balance
+    private func dayAndMonth(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE, MMM d"
+        return f.string(from: date)
+    }
+}
+
+// MARK: - Widget Definition
+
+struct WidgetExtension: Widget {
+    let kind = "KalendarWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: KalendarProvider()) { entry in
+            WidgetEntryView(entry: entry)
         }
-        .padding(.bottom, 12)
-    }
-    
-    // MARK: - Background Gradient (Same as ContentView)
-    private var backgroundGradient: some View {
-        LinearGradient(
-            colors: [Color(.systemBackground), Color(.systemGray6)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-    
-    // MARK: - Day Gradient (Same as ContentView)
-    private var dayGradient: LinearGradient {
-        LinearGradient(
-            colors: [.blue, .purple],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-    
-    // MARK: - Calendar Columns (Same as ContentView)
-    private var calendarColumns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
+        .configurationDisplayName("Kalendar")
+        .description("Your calendar at a glance")
+        .supportedFamilies([
+            .systemSmall,
+            .systemMedium,
+            .systemLarge,
+            .accessoryCircular,
+            .accessoryRectangular,
+        ])
     }
 }
 
-#Preview(as: .systemSmall) {
-    WidgetExtension()
-} timeline: {
-    CalendarEntry(
-        date: Date(),
-        selectedDate: Date(),
-        currentMonth: "August",
-        currentDayName: "Monday",
-        allCalendarDays: [
-            CalendarDay(day: 28, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 28)) ?? Date()),
-            CalendarDay(day: 29, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 29)) ?? Date()),
-            CalendarDay(day: 30, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 30)) ?? Date()),
-            CalendarDay(day: 31, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 31)) ?? Date()),
-            CalendarDay(day: 1, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 1)) ?? Date()),
-            CalendarDay(day: 2, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 2)) ?? Date()),
-            CalendarDay(day: 3, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 3)) ?? Date()),
-            CalendarDay(day: 4, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 4)) ?? Date()),
-            CalendarDay(day: 5, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 5)) ?? Date()),
-            CalendarDay(day: 6, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 6)) ?? Date()),
-            CalendarDay(day: 7, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 7)) ?? Date()),
-            CalendarDay(day: 8, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 8)) ?? Date()),
-            CalendarDay(day: 9, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 9)) ?? Date()),
-            CalendarDay(day: 10, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 10)) ?? Date()),
-            CalendarDay(day: 11, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 11)) ?? Date()),
-            CalendarDay(day: 12, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 12)) ?? Date()),
-            CalendarDay(day: 13, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 13)) ?? Date()),
-            CalendarDay(day: 14, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 14)) ?? Date()),
-            CalendarDay(day: 15, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 15)) ?? Date()),
-            CalendarDay(day: 16, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 16)) ?? Date()),
-            CalendarDay(day: 17, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 17)) ?? Date()),
-            CalendarDay(day: 18, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 18)) ?? Date()),
-            CalendarDay(day: 19, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 19)) ?? Date()),
-            CalendarDay(day: 20, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 20)) ?? Date()),
-            CalendarDay(day: 21, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 21)) ?? Date()),
-            CalendarDay(day: 22, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 22)) ?? Date()),
-            CalendarDay(day: 23, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 23)) ?? Date()),
-            CalendarDay(day: 24, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 24)) ?? Date()),
-            CalendarDay(day: 25, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 25)) ?? Date()),
-            CalendarDay(day: 26, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 26)) ?? Date()),
-            CalendarDay(day: 27, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 27)) ?? Date()),
-            CalendarDay(day: 28, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 28)) ?? Date()),
-            CalendarDay(day: 29, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 29)) ?? Date()),
-            CalendarDay(day: 30, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 30)) ?? Date()),
-            CalendarDay(day: 31, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 31)) ?? Date()),
-            CalendarDay(day: 1, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 1)) ?? Date()),
-            CalendarDay(day: 2, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 2)) ?? Date()),
-            CalendarDay(day: 3, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 3)) ?? Date()),
-            CalendarDay(day: 4, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 4)) ?? Date()),
-            CalendarDay(day: 5, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 5)) ?? Date()),
-            CalendarDay(day: 6, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 6)) ?? Date()),
-            CalendarDay(day: 7, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 7)) ?? Date())
-        ],
-        weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        initialTime: Date()
-    )
-}
+struct WidgetEntryView: View {
+    @Environment(\.widgetFamily) var family
+    let entry: KalendarEntry
 
-#Preview(as: .systemMedium) {
-    WidgetExtension()
-} timeline: {
-    CalendarEntry(
-        date: Date(),
-        selectedDate: Date(),
-        currentMonth: "August",
-        currentDayName: "Monday",
-        allCalendarDays: [
-            CalendarDay(day: 28, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 28)) ?? Date()),
-            CalendarDay(day: 29, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 29)) ?? Date()),
-            CalendarDay(day: 30, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 30)) ?? Date()),
-            CalendarDay(day: 31, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 31)) ?? Date()),
-            CalendarDay(day: 1, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 1)) ?? Date()),
-            CalendarDay(day: 2, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 2)) ?? Date()),
-            CalendarDay(day: 3, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 3)) ?? Date()),
-            CalendarDay(day: 4, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 4)) ?? Date()),
-            CalendarDay(day: 5, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 5)) ?? Date()),
-            CalendarDay(day: 6, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 6)) ?? Date()),
-            CalendarDay(day: 7, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 7)) ?? Date()),
-            CalendarDay(day: 8, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 8)) ?? Date()),
-            CalendarDay(day: 9, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 9)) ?? Date()),
-            CalendarDay(day: 10, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 10)) ?? Date()),
-            CalendarDay(day: 11, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 11)) ?? Date()),
-            CalendarDay(day: 12, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 12)) ?? Date()),
-            CalendarDay(day: 13, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 13)) ?? Date()),
-            CalendarDay(day: 14, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 14)) ?? Date()),
-            CalendarDay(day: 15, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 15)) ?? Date()),
-            CalendarDay(day: 16, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 16)) ?? Date()),
-            CalendarDay(day: 17, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 17)) ?? Date()),
-            CalendarDay(day: 18, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 18)) ?? Date()),
-            CalendarDay(day: 19, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 19)) ?? Date()),
-            CalendarDay(day: 20, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 20)) ?? Date()),
-            CalendarDay(day: 21, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 21)) ?? Date()),
-            CalendarDay(day: 22, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 22)) ?? Date()),
-            CalendarDay(day: 23, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 23)) ?? Date()),
-            CalendarDay(day: 24, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 24)) ?? Date()),
-            CalendarDay(day: 25, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 25)) ?? Date()),
-            CalendarDay(day: 26, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 26)) ?? Date()),
-            CalendarDay(day: 27, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 27)) ?? Date()),
-            CalendarDay(day: 28, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 28)) ?? Date()),
-            CalendarDay(day: 29, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 29)) ?? Date()),
-            CalendarDay(day: 30, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 30)) ?? Date()),
-            CalendarDay(day: 31, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 31)) ?? Date()),
-            CalendarDay(day: 1, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 1)) ?? Date()),
-            CalendarDay(day: 2, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 2)) ?? Date()),
-            CalendarDay(day: 3, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 3)) ?? Date()),
-            CalendarDay(day: 4, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 4)) ?? Date()),
-            CalendarDay(day: 5, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 5)) ?? Date()),
-            CalendarDay(day: 6, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 6)) ?? Date()),
-            CalendarDay(day: 7, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 7)) ?? Date())
-        ],
-        weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        initialTime: Date()
-    )
-}
-
-// MARK: - Widget Background Extension
-extension View {
-    func widgetBackground(_ backgroundColor: Color) -> some View {
-        if #available(iOS 17.0, *) {
-            return self
-                .containerBackground(for: .widget) {
-                    backgroundColor
-                }
-        } else {
-            return self
-                .background(backgroundColor)
+    var body: some View {
+        switch family {
+        case .systemSmall:
+            SmallCalendarView(entry: entry)
+        case .systemMedium:
+            MediumCalendarView(entry: entry)
+        case .systemLarge:
+            LargeCalendarView(entry: entry)
+        case .accessoryCircular:
+            LockScreenCircularView(entry: entry)
+        case .accessoryRectangular:
+            LockScreenRectangularView(entry: entry)
+        default:
+            MediumCalendarView(entry: entry)
         }
     }
-}
-
-#Preview(as: .systemLarge) {
-    WidgetExtension()
-} timeline: {
-    CalendarEntry(
-        date: Date(),
-        selectedDate: Date(),
-        currentMonth: "August",
-        currentDayName: "Monday",
-        allCalendarDays: [
-            // Previous month days (faded)
-            CalendarDay(day: 28, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 28)) ?? Date()),
-            CalendarDay(day: 29, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 29)) ?? Date()),
-            CalendarDay(day: 30, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 30)) ?? Date()),
-            CalendarDay(day: 31, isCurrentMonth: false, monthType: .previous, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) - 1, day: 31)) ?? Date()),
-            
-            // Current month days
-            CalendarDay(day: 1, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 1)) ?? Date()),
-            CalendarDay(day: 2, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 2)) ?? Date()),
-            CalendarDay(day: 3, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 3)) ?? Date()),
-            CalendarDay(day: 4, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 4)) ?? Date()),
-            CalendarDay(day: 5, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 5)) ?? Date()),
-            CalendarDay(day: 6, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 6)) ?? Date()),
-            CalendarDay(day: 7, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 7)) ?? Date()),
-            CalendarDay(day: 8, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 8)) ?? Date()),
-            CalendarDay(day: 9, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 9)) ?? Date()),
-            CalendarDay(day: 10, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 10)) ?? Date()),
-            CalendarDay(day: 11, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 11)) ?? Date()),
-            CalendarDay(day: 12, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 12)) ?? Date()),
-            CalendarDay(day: 13, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 13)) ?? Date()),
-            CalendarDay(day: 14, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 14)) ?? Date()),
-            CalendarDay(day: 15, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 15)) ?? Date()),
-            CalendarDay(day: 16, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 16)) ?? Date()),
-            CalendarDay(day: 17, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 17)) ?? Date()),
-            CalendarDay(day: 18, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 18)) ?? Date()),
-            CalendarDay(day: 19, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 19)) ?? Date()),
-            CalendarDay(day: 20, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 20)) ?? Date()),
-            CalendarDay(day: 21, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 21)) ?? Date()),
-            CalendarDay(day: 22, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 22)) ?? Date()),
-            CalendarDay(day: 23, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 23)) ?? Date()),
-            CalendarDay(day: 24, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 24)) ?? Date()),
-            CalendarDay(day: 25, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 25)) ?? Date()),
-            CalendarDay(day: 26, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 26)) ?? Date()),
-            CalendarDay(day: 27, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 27)) ?? Date()),
-            CalendarDay(day: 28, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 28)) ?? Date()),
-            CalendarDay(day: 29, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 29)) ?? Date()),
-            CalendarDay(day: 30, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 30)) ?? Date()),
-            CalendarDay(day: 31, isCurrentMonth: true, monthType: .current, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()), day: 31)) ?? Date()),
-            
-            // Next month days (faded)
-            CalendarDay(day: 1, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 1)) ?? Date()),
-            CalendarDay(day: 2, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 2)) ?? Date()),
-            CalendarDay(day: 3, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 3)) ?? Date()),
-            CalendarDay(day: 4, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 4)) ?? Date()),
-            CalendarDay(day: 5, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 5)) ?? Date()),
-            CalendarDay(day: 6, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 6)) ?? Date()),
-            CalendarDay(day: 7, isCurrentMonth: false, monthType: .next, actualDate: Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()), month: Calendar.current.component(.month, from: Date()) + 1, day: 7)) ?? Date())
-        ],
-        weekdaySymbols: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        initialTime: Date()
-    )
 }
