@@ -31,6 +31,11 @@ struct KalendarEntry: TimelineEntry {
 
 struct KalendarProvider: TimelineProvider {
     private let eventStore = EKEventStore()
+    private static let appGroupID = "group.com.alirezaiyan.Kalendar"
+
+    private var sharedDefaults: UserDefaults {
+        UserDefaults(suiteName: Self.appGroupID) ?? .standard
+    }
 
     func placeholder(in context: Context) -> KalendarEntry {
         makeEntry(for: Date())
@@ -71,11 +76,17 @@ struct KalendarProvider: TimelineProvider {
     // MARK: - Entry Generation
 
     private func makeEntry(for date: Date) -> KalendarEntry {
+        let defaults = sharedDefaults
         var calendar = Calendar(identifier: .gregorian)
-        let startMonday = UserDefaults.standard.object(forKey: "startOfWeekMonday") == nil
+        let startMonday = defaults.object(forKey: "startOfWeekMonday") == nil
             ? true
-            : UserDefaults.standard.bool(forKey: "startOfWeekMonday")
+            : defaults.bool(forKey: "startOfWeekMonday")
         calendar.firstWeekday = startMonday ? 2 : 1
+
+        let selectedIDs: Set<String>? = {
+            guard let saved = defaults.stringArray(forKey: "selectedCalendarIDs"), !saved.isEmpty else { return nil }
+            return Set(saved)
+        }()
 
         let days = generateDays(for: date, calendar: calendar)
 
@@ -83,7 +94,7 @@ struct KalendarProvider: TimelineProvider {
         formatter.dateFormat = "MMMM yyyy"
         let monthTitle = formatter.string(from: date)
 
-        let (todayEvents, nextEvent) = fetchEvents(for: date, calendar: calendar)
+        let (todayEvents, nextEvent) = fetchEvents(for: date, calendar: calendar, calendarIDs: selectedIDs)
 
         return KalendarEntry(
             date: date,
@@ -155,28 +166,72 @@ struct KalendarProvider: TimelineProvider {
         return days
     }
 
-    private func fetchEvents(for date: Date, calendar: Calendar) -> (titles: [String], next: String?) {
-        let status = EKEventStore.authorizationStatus(for: .event)
-        guard status == .fullAccess || status == .authorized else { return ([], nil) }
-
+    private func fetchEvents(for date: Date, calendar: Calendar, calendarIDs: Set<String>?) -> (titles: [String], next: String?) {
         let start = calendar.startOfDay(for: date)
         guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return ([], nil) }
-        let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: nil)
-        let events = eventStore.events(matching: predicate).sorted { $0.startDate < $1.startDate }
 
-        let titles = events.prefix(5).map { $0.title ?? "Untitled" }
-        let nextEvent = events.first { $0.startDate > date }?.title
+        var allTitles: [(title: String, startDate: Date)] = []
+
+        // System calendar events
+        let status = EKEventStore.authorizationStatus(for: .event)
+        if status == .fullAccess || status == .authorized {
+            let calendars: [EKCalendar]? = calendarIDs.map { ids in
+                eventStore.calendars(for: .event).filter { ids.contains($0.calendarIdentifier) }
+            }
+            let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: calendars)
+            let ekEvents = eventStore.events(matching: predicate)
+            allTitles += ekEvents.map { (title: $0.title ?? "Untitled", startDate: $0.startDate) }
+        }
+
+        // Local events from app
+        let localEvents = loadLocalEvents(from: start, to: end)
+        allTitles += localEvents.map { (title: $0.title, startDate: $0.startDate) }
+
+        allTitles.sort { $0.startDate < $1.startDate }
+
+        let titles = allTitles.prefix(5).map { $0.title }
+        let nextEvent = allTitles.first { $0.startDate > date }?.title
 
         return (titles, nextEvent)
     }
+
+    private func loadLocalEvents(from start: Date, to end: Date) -> [(title: String, startDate: Date, endDate: Date)] {
+        let container = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: Self.appGroupID
+        ) ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let fileURL = container.appendingPathComponent("local_events.json")
+
+        guard let data = try? Data(contentsOf: fileURL),
+              let events = try? JSONDecoder().decode([WidgetLocalEvent].self, from: data) else {
+            return []
+        }
+
+        return events
+            .filter { $0.startDate < end && $0.endDate > start }
+            .map { (title: $0.title, startDate: $0.startDate, endDate: $0.endDate) }
+    }
+}
+
+// MARK: - Local Event Decoding (matches CalendarEvent in app)
+
+private struct WidgetLocalEvent: Codable {
+    let id: String
+    var title: String
+    var startDate: Date
+    var endDate: Date
+    var isAllDay: Bool
+    var notes: String?
+    var calendarColorHex: String?
+    var isLocal: Bool
 }
 
 // MARK: - Weekday Symbols
 
 private func weekdaySymbols() -> [String] {
-    let startMonday = UserDefaults.standard.object(forKey: "startOfWeekMonday") == nil
+    let defaults = UserDefaults(suiteName: "group.com.alirezaiyan.Kalendar") ?? .standard
+    let startMonday = defaults.object(forKey: "startOfWeekMonday") == nil
         ? true
-        : UserDefaults.standard.bool(forKey: "startOfWeekMonday")
+        : defaults.bool(forKey: "startOfWeekMonday")
     return startMonday ? ["M", "T", "W", "T", "F", "S", "S"] : ["S", "M", "T", "W", "T", "F", "S"]
 }
 

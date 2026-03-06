@@ -47,15 +47,19 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $showSettings) {
-                SettingsView()
+                SettingsView(viewModel: viewModel)
             }
             .sheet(isPresented: $showEventEditor) {
                 EventEditorView(viewModel: viewModel, initialDate: viewModel.selectedDate)
             }
+            .sheet(isPresented: $viewModel.showCalendarPicker) {
+                CalendarPickerView(viewModel: viewModel)
+            }
+            .task {
+                await viewModel.checkExistingAccess()
+            }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-                if !viewModel.calendarAccessGranted {
-                    Task { await viewModel.requestCalendarAccess() }
-                }
+                Task { await viewModel.checkExistingAccess() }
             }
         }
         .tint(accentColorFor(accentColorName))

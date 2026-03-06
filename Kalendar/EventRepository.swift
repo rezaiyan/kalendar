@@ -11,7 +11,7 @@ import UIKit
 
 // MARK: - Calendar Event Model
 
-struct CalendarEvent: Identifiable, Equatable {
+struct CalendarEvent: Identifiable, Equatable, Codable {
     let id: String
     var title: String
     var startDate: Date
@@ -19,8 +19,9 @@ struct CalendarEvent: Identifiable, Equatable {
     var isAllDay: Bool
     var notes: String?
     var calendarColorHex: String?
+    var isLocal: Bool
 
-    init(id: String = UUID().uuidString, title: String, startDate: Date, endDate: Date, isAllDay: Bool, notes: String? = nil, calendarColorHex: String? = nil) {
+    init(id: String = UUID().uuidString, title: String, startDate: Date, endDate: Date, isAllDay: Bool, notes: String? = nil, calendarColorHex: String? = nil, isLocal: Bool = false) {
         self.id = id
         self.title = title
         self.startDate = startDate
@@ -28,7 +29,17 @@ struct CalendarEvent: Identifiable, Equatable {
         self.isAllDay = isAllDay
         self.notes = notes
         self.calendarColorHex = calendarColorHex
+        self.isLocal = isLocal
     }
+}
+
+// MARK: - Calendar Source Model
+
+struct CalendarSource: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let colorHex: String
+    let accountName: String
 }
 
 // MARK: - Event Errors
@@ -50,23 +61,83 @@ enum EventError: LocalizedError, Equatable {
     }
 }
 
-// MARK: - Event Repository Protocol
+// MARK: - Event Repository Protocol (read-only from system calendars)
 
 @MainActor
 protocol EventRepository {
+    func checkAccess() async -> Bool
     func requestAccess() async -> Bool
-    func fetchEvents(from start: Date, to end: Date) -> [CalendarEvent]
-    func createEvent(_ event: CalendarEvent) throws
-    func deleteEvent(id: String) throws
+    func availableCalendars() -> [CalendarSource]
+    func fetchEvents(from start: Date, to end: Date, calendarIDs: Set<String>?) async -> [CalendarEvent]
 }
 
-// MARK: - EventKit Repository (Production)
+// MARK: - Local Event Store (app-created events)
+
+@MainActor
+final class LocalEventStore {
+    private static let fileName = "local_events.json"
+
+    private static var defaultFileURL: URL {
+        let container = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: "group.com.alirezaiyan.Kalendar"
+        ) ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        return container.appendingPathComponent(fileName)
+    }
+
+    private let fileURL: URL
+
+    init(fileURL: URL? = nil) {
+        self.fileURL = fileURL ?? Self.defaultFileURL
+    }
+
+    func loadEvents() -> [CalendarEvent] {
+        guard let data = try? Data(contentsOf: fileURL),
+              let events = try? JSONDecoder().decode([CalendarEvent].self, from: data) else {
+            return []
+        }
+        return events
+    }
+
+    func saveEvents(_ events: [CalendarEvent]) {
+        guard let data = try? JSONEncoder().encode(events) else { return }
+        try? data.write(to: fileURL, options: .atomic)
+    }
+
+    func addEvent(_ event: CalendarEvent) {
+        var events = loadEvents()
+        events.append(event)
+        saveEvents(events)
+    }
+
+    func deleteEvent(id: String) {
+        var events = loadEvents()
+        events.removeAll { $0.id == id }
+        saveEvents(events)
+    }
+
+    func fetchEvents(from start: Date, to end: Date) -> [CalendarEvent] {
+        loadEvents().filter { $0.startDate < end && $0.endDate > start }
+    }
+}
+
+// MARK: - EventKit Repository (read-only)
 
 @MainActor
 final class EKEventRepository: EventRepository {
     private var store = EKEventStore()
-
     private var hasRefreshedStore = false
+
+    func checkAccess() async -> Bool {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        if status == .fullAccess {
+            if !hasRefreshedStore {
+                store = EKEventStore()
+                hasRefreshedStore = true
+            }
+            return true
+        }
+        return false
+    }
 
     func requestAccess() async -> Bool {
         let status = EKEventStore.authorizationStatus(for: .event)
@@ -92,38 +163,36 @@ final class EKEventRepository: EventRepository {
         }
     }
 
-    func fetchEvents(from start: Date, to end: Date) -> [CalendarEvent] {
-        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
-        return store.events(matching: predicate).map { ek in
-            CalendarEvent(
-                id: ek.eventIdentifier,
-                title: ek.title ?? "Untitled",
-                startDate: ek.startDate,
-                endDate: ek.endDate,
-                isAllDay: ek.isAllDay,
-                notes: ek.notes,
-                calendarColorHex: ek.calendar.cgColor.hexString
+    func availableCalendars() -> [CalendarSource] {
+        store.calendars(for: .event).map { cal in
+            CalendarSource(
+                id: cal.calendarIdentifier,
+                title: cal.title,
+                colorHex: cal.cgColor.hexString,
+                accountName: cal.source?.title ?? ""
             )
-        }
+        }.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
-    func createEvent(_ event: CalendarEvent) throws {
-        guard let calendar = store.defaultCalendarForNewEvents ?? store.calendars(for: .event).first else {
-            throw EventError.saveFailed("No calendar available. Please add a calendar account in System Settings > Internet Accounts.")
+    func fetchEvents(from start: Date, to end: Date, calendarIDs: Set<String>?) async -> [CalendarEvent] {
+        let store = self.store
+        let calendars: [EKCalendar]? = calendarIDs.map { ids in
+            store.calendars(for: .event).filter { ids.contains($0.calendarIdentifier) }
         }
-        let ek = EKEvent(eventStore: store)
-        ek.title = event.title
-        ek.startDate = event.startDate
-        ek.endDate = event.endDate
-        ek.isAllDay = event.isAllDay
-        ek.notes = event.notes
-        ek.calendar = calendar
-        try store.save(ek, span: .thisEvent)
-    }
-
-    func deleteEvent(id: String) throws {
-        guard let ek = store.event(withIdentifier: id) else { return }
-        try store.remove(ek, span: .thisEvent)
+        return await Task.detached {
+            let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
+            return store.events(matching: predicate).map { ek in
+                CalendarEvent(
+                    id: ek.eventIdentifier,
+                    title: ek.title ?? "Untitled",
+                    startDate: ek.startDate,
+                    endDate: ek.endDate,
+                    isAllDay: ek.isAllDay,
+                    notes: ek.notes,
+                    calendarColorHex: ek.calendar.cgColor.hexString
+                )
+            }
+        }.value
     }
 }
 

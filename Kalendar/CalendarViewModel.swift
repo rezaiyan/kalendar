@@ -7,6 +7,7 @@
 
 import Foundation
 import Observation
+import WidgetKit
 
 struct CalendarDay: Identifiable {
     let id: String
@@ -22,27 +23,51 @@ final class CalendarViewModel {
     var selectedDate = Date()
     var events: [CalendarEvent] = []
     var calendarAccessGranted = false
+    var availableCalendars: [CalendarSource] = []
+    var selectedCalendarIDs: Set<String> = [] {
+        didSet { persistSelectedCalendars() }
+    }
+    var showCalendarPicker = false
 
     private let repository: EventRepository
+    private let localStore: LocalEventStore
+    static let appGroupID = "group.com.alirezaiyan.Kalendar"
+    private static let selectedCalendarsKey = "selectedCalendarIDs"
+
+    private static var sharedDefaults: UserDefaults {
+        UserDefaults(suiteName: appGroupID) ?? .standard
+    }
+
+    private func persistSelectedCalendars() {
+        Self.sharedDefaults.set(Array(selectedCalendarIDs), forKey: Self.selectedCalendarsKey)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    private func loadSelectedCalendars() {
+        if let saved = Self.sharedDefaults.stringArray(forKey: Self.selectedCalendarsKey) {
+            selectedCalendarIDs = Set(saved)
+        }
+    }
 
     private var calendar: Calendar {
         var cal = Calendar(identifier: .gregorian)
-        let startMonday = UserDefaults.standard.object(forKey: "startOfWeekMonday") == nil
+        let defaults = Self.sharedDefaults
+        let startMonday = defaults.object(forKey: "startOfWeekMonday") == nil
             ? true
-            : UserDefaults.standard.bool(forKey: "startOfWeekMonday")
+            : defaults.bool(forKey: "startOfWeekMonday")
         cal.firstWeekday = startMonday ? 2 : 1
         return cal
     }
 
     // Production init
     convenience init() {
-        self.init(eventRepository: EKEventRepository())
+        self.init(eventRepository: EKEventRepository(), localEventStore: LocalEventStore())
     }
 
     // Testable init
-    init(eventRepository: EventRepository) {
+    init(eventRepository: EventRepository, localEventStore: LocalEventStore? = nil) {
         self.repository = eventRepository
-        Task { await requestCalendarAccess() }
+        self.localStore = localEventStore ?? LocalEventStore()
     }
 
     // MARK: - Display Properties
@@ -148,18 +173,18 @@ final class CalendarViewModel {
 
     func nextMonth() {
         displayedMonth = calendar.date(byAdding: .month, value: 1, to: displayedMonth) ?? displayedMonth
-        fetchEvents()
+        Task { await fetchEvents() }
     }
 
     func previousMonth() {
         displayedMonth = calendar.date(byAdding: .month, value: -1, to: displayedMonth) ?? displayedMonth
-        fetchEvents()
+        Task { await fetchEvents() }
     }
 
     func goToToday() {
         displayedMonth = Date()
         selectedDate = Date()
-        fetchEvents()
+        Task { await fetchEvents() }
     }
 
     func selectDate(_ date: Date) {
@@ -168,21 +193,47 @@ final class CalendarViewModel {
 
     // MARK: - Event Management
 
-    func requestCalendarAccess() async {
-        calendarAccessGranted = await repository.requestAccess()
+    /// Silently checks if calendar access was already granted (no prompt)
+    func checkExistingAccess() async {
+        calendarAccessGranted = await repository.checkAccess()
         if calendarAccessGranted {
-            fetchEvents()
+            availableCalendars = repository.availableCalendars()
+            loadSelectedCalendars()
+            await fetchEvents()
         }
     }
 
-    func fetchEvents() {
-        guard calendarAccessGranted else { return }
-        guard let interval = calendar.dateInterval(of: .month, for: displayedMonth) else { return }
-        events = repository.fetchEvents(from: interval.start, to: interval.end)
+    /// Explicitly requests calendar access (shows system prompt if needed)
+    func requestCalendarAccess() async {
+        calendarAccessGranted = await repository.requestAccess()
+        if calendarAccessGranted {
+            availableCalendars = repository.availableCalendars()
+            loadSelectedCalendars()
+            if selectedCalendarIDs.isEmpty {
+                showCalendarPicker = true
+            } else {
+                await fetchEvents()
+            }
+        }
     }
 
-    func createEvent(title: String, startDate: Date, endDate: Date, notes: String?, isAllDay: Bool) throws {
-        // Validation
+    func updateSelectedCalendars(_ ids: Set<String>) {
+        selectedCalendarIDs = ids
+        Task { await fetchEvents() }
+    }
+
+    func fetchEvents() async {
+        guard let interval = calendar.dateInterval(of: .month, for: displayedMonth) else { return }
+        var merged: [CalendarEvent] = []
+        if calendarAccessGranted {
+            let ids: Set<String>? = selectedCalendarIDs.isEmpty ? nil : selectedCalendarIDs
+            merged += await repository.fetchEvents(from: interval.start, to: interval.end, calendarIDs: ids)
+        }
+        merged += localStore.fetchEvents(from: interval.start, to: interval.end)
+        events = merged
+    }
+
+    func createEvent(title: String, startDate: Date, endDate: Date, notes: String?, isAllDay: Bool) async throws {
         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
         guard !trimmedTitle.isEmpty else {
             throw EventError.emptyTitle
@@ -196,25 +247,19 @@ final class CalendarViewModel {
             startDate: startDate,
             endDate: endDate,
             isAllDay: isAllDay,
-            notes: notes
+            notes: notes,
+            isLocal: true
         )
 
-        do {
-            try repository.createEvent(event)
-        } catch {
-            throw EventError.saveFailed(error.localizedDescription)
-        }
-
-        fetchEvents()
+        localStore.addEvent(event)
+        await fetchEvents()
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
-    func deleteEvent(id: String) throws {
-        do {
-            try repository.deleteEvent(id: id)
-        } catch {
-            throw EventError.saveFailed(error.localizedDescription)
-        }
-        fetchEvents()
+    func deleteEvent(id: String) async throws {
+        localStore.deleteEvent(id: id)
+        await fetchEvents()
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: - Calendar Grid Generation

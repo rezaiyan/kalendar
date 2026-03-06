@@ -6,11 +6,15 @@
 //
 
 import SwiftUI
+import WidgetKit
 
 struct SettingsView: View {
-@AppStorage("startOfWeekMonday") private var startMonday = true
+    var viewModel: CalendarViewModel?
+    @AppStorage("startOfWeekMonday", store: UserDefaults(suiteName: CalendarViewModel.appGroupID))
+    private var startMonday = true
     @AppStorage("accentColorName") private var accentColorName = "blue"
     @Environment(\.dismiss) private var dismiss
+    @State private var showCalendarPicker = false
 
     private let accentColors = ["blue", "purple", "indigo", "orange", "red", "green", "pink"]
 
@@ -19,9 +23,25 @@ struct SettingsView: View {
             Form {
                 Section("Calendar") {
                     Toggle("Week starts on Monday", isOn: $startMonday)
+                    if let vm = viewModel, vm.calendarAccessGranted {
+                        Button {
+                            showCalendarPicker = true
+                        } label: {
+                            HStack {
+                                Text("Calendars")
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Text("\(vm.selectedCalendarIDs.isEmpty ? "All" : "\(vm.selectedCalendarIDs.count)")")
+                                    .foregroundStyle(.secondary)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
 
-Section("Appearance") {
+                Section("Appearance") {
                     HStack {
                         Text("Accent Color")
                         Spacer()
@@ -84,6 +104,14 @@ Section("Appearance") {
             }
         }
         .tint(accentColorFor(accentColorName))
+        .onChange(of: startMonday) {
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+        .sheet(isPresented: $showCalendarPicker) {
+            if let vm = viewModel {
+                CalendarPickerView(viewModel: vm)
+            }
+        }
     }
 }
 

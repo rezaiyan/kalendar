@@ -87,23 +87,25 @@ struct EventEditorView: View {
     }
 
     private func saveEvent() {
-        do {
-            try viewModel.createEvent(
-                title: title,
-                startDate: startDate,
-                endDate: endDate,
-                notes: notes.isEmpty ? nil : notes,
-                isAllDay: isAllDay
-            )
+        Task {
+            do {
+                try await viewModel.createEvent(
+                    title: title,
+                    startDate: startDate,
+                    endDate: endDate,
+                    notes: notes.isEmpty ? nil : notes,
+                    isAllDay: isAllDay
+                )
 
-            if reminderEnabled {
-                scheduleReminder()
+                if reminderEnabled {
+                    scheduleReminder()
+                }
+
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
             }
-
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
-            showError = true
         }
     }
 
