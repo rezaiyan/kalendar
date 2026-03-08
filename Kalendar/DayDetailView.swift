@@ -2,7 +2,7 @@
 //  DayDetailView.swift
 //  Kalendar
 //
-//  Selected day events panel
+//  Selected day events panel — Liquid Glass
 //
 
 import SwiftUI
@@ -28,9 +28,21 @@ struct DayDetailView: View {
                 Spacer()
 
                 Button(action: onAddEvent) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title3)
+                    Image(systemName: "plus")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.accentColor)
+                        .frame(width: 32, height: 32)
+                        .background {
+                            Circle()
+                                .fill(.ultraThinMaterial)
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(.white.opacity(0.3), lineWidth: 0.5)
+                                )
+                        }
+                        .shadow(color: Color.accentColor.opacity(0.2), radius: 6, x: 0, y: 2)
                 }
+                .buttonStyle(LiquidGlassButtonStyle())
             }
 
             // Event list
@@ -47,40 +59,45 @@ struct DayDetailView: View {
             }
         }
         .glassCard()
-        .animation(.easeInOut(duration: 0.2), value: viewModel.selectedDate)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.selectedDate)
     }
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Image(systemName: "calendar")
-                .font(.largeTitle)
+                .font(.system(size: 36))
                 .foregroundStyle(.quaternary)
             Text("No Events")
-                .font(.subheadline.weight(.medium))
+                .font(.system(.subheadline, design: .rounded).weight(.medium))
                 .foregroundStyle(.secondary)
             Text("Tap + to create an event")
-                .font(.caption)
+                .font(.system(.caption, design: .rounded))
                 .foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
+        .padding(.vertical, 24)
     }
 
     private var calendarAccessPrompt: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             Image(systemName: "calendar.badge.plus")
-                .font(.largeTitle)
+                .font(.system(size: 36))
                 .foregroundStyle(.secondary)
             Text("Calendar Access Required")
-                .font(.subheadline.weight(.medium))
-            Button("Grant Access") {
+                .font(.system(.subheadline, design: .rounded).weight(.medium))
+            Button {
                 Task { await viewModel.requestCalendarAccess() }
+            } label: {
+                Text("Grant Access")
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                    .glassPill()
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            .buttonStyle(LiquidGlassButtonStyle())
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
+        .padding(.vertical, 20)
     }
 }
 
@@ -91,29 +108,42 @@ struct EventRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(eventColor)
-                .frame(width: 4, height: 36)
+            // Glass color indicator
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [eventColor.opacity(0.9), eventColor.opacity(0.6)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: 4, height: 38)
+                .shadow(color: eventColor.opacity(0.4), radius: 3, x: 0, y: 0)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(event.title)
-                    .font(.subheadline.weight(.medium))
+                    .font(.system(.subheadline, design: .rounded).weight(.medium))
                     .lineLimit(1)
 
                 if event.isAllDay {
                     Text("All Day")
-                        .font(.caption)
+                        .font(.system(.caption, design: .rounded))
                         .foregroundStyle(.secondary)
                 } else {
                     Text(timeRange)
-                        .font(.caption)
+                        .font(.system(.caption, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
             }
 
             Spacer()
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(eventColor.opacity(0.06))
+        )
     }
 
     private var eventColor: Color {

@@ -2,7 +2,7 @@
 //  CalendarPickerView.swift
 //  Kalendar
 //
-//  Choose which calendars to display events from
+//  Choose which calendars to display — Liquid Glass
 //
 
 import SwiftUI
@@ -37,13 +37,14 @@ struct CalendarPickerView: View {
                     Button("Select All") {
                         selected = Set(viewModel.availableCalendars.map(\.id))
                     }
+                    .font(.system(.body, design: .rounded))
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         viewModel.updateSelectedCalendars(selected)
                         dismiss()
                     }
-                    .fontWeight(.semibold)
+                    .font(.system(.body, design: .rounded).weight(.semibold))
                     .disabled(selected.isEmpty)
                 }
             }
@@ -59,23 +60,50 @@ struct CalendarPickerView: View {
 
     private func calendarRow(_ cal: CalendarSource) -> some View {
         Button {
-            if selected.contains(cal.id) {
-                selected.remove(cal.id)
-            } else {
-                selected.insert(cal.id)
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                if selected.contains(cal.id) {
+                    selected.remove(cal.id)
+                } else {
+                    selected.insert(cal.id)
+                }
             }
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
         } label: {
             HStack(spacing: 12) {
-                Circle()
-                    .fill(Color(hex: cal.colorHex))
-                    .frame(width: 12, height: 12)
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: cal.colorHex).opacity(0.8), Color(hex: cal.colorHex)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 14, height: 14)
+                        .overlay(
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.white.opacity(0.4), .clear],
+                                        startPoint: .topLeading,
+                                        endPoint: .center
+                                    )
+                                )
+                        )
+                        .shadow(color: Color(hex: cal.colorHex).opacity(0.4), radius: 3, x: 0, y: 1)
+                }
+
                 Text(cal.title)
+                    .font(.system(.body, design: .rounded))
                     .foregroundStyle(.primary)
+
                 Spacer()
+
                 if selected.contains(cal.id) {
-                    Image(systemName: "checkmark")
+                    Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.accentColor)
-                        .fontWeight(.semibold)
+                        .font(.body.weight(.medium))
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
         }
