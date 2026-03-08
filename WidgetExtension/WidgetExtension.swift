@@ -235,7 +235,7 @@ private func weekdaySymbols() -> [String] {
     return startMonday ? ["M", "T", "W", "T", "F", "S", "S"] : ["S", "M", "T", "W", "T", "F", "S"]
 }
 
-// MARK: - Small Widget
+// MARK: - Small Widget (Liquid Glass)
 
 struct SmallCalendarView: View {
     let entry: KalendarEntry
@@ -243,37 +243,56 @@ struct SmallCalendarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(entry.monthTitle.components(separatedBy: " ").first ?? "")
-                .font(.caption2.weight(.semibold))
+                .font(.system(.caption2, design: .rounded).weight(.semibold))
                 .foregroundStyle(.secondary)
 
             Text("\(Calendar.current.component(.day, from: entry.date))")
                 .font(.system(size: 48, weight: .bold, design: .rounded))
 
             Text(dayName(entry.date))
-                .font(.caption.weight(.medium))
+                .font(.system(.caption, design: .rounded).weight(.medium))
                 .foregroundStyle(.secondary)
 
             Spacer(minLength: 0)
 
             if let next = entry.nextEvent {
-                HStack(spacing: 4) {
-                    Circle().fill(Color.accentColor).frame(width: 5, height: 5)
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(Color.accentColor)
+                        .frame(width: 5, height: 5)
                     Text(next)
-                        .font(.caption2)
+                        .font(.system(.caption2, design: .rounded))
                         .lineLimit(1)
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.ultraThinMaterial, in: Capsule())
             } else if !entry.todayEvents.isEmpty {
-                HStack(spacing: 4) {
-                    Circle().fill(Color.accentColor).frame(width: 5, height: 5)
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(Color.accentColor)
+                        .frame(width: 5, height: 5)
                     Text("\(entry.todayEvents.count) event\(entry.todayEvents.count == 1 ? "" : "s")")
-                        .font(.caption2)
+                        .font(.system(.caption2, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.ultraThinMaterial, in: Capsule())
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .containerBackground(.background, for: .widget)
+        .containerBackground(for: .widget) {
+            ZStack {
+                Color(.systemBackground)
+                LinearGradient(
+                    colors: [Color.accentColor.opacity(0.08), .clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        }
     }
 
     private func dayName(_ date: Date) -> String {
@@ -283,7 +302,7 @@ struct SmallCalendarView: View {
     }
 }
 
-// MARK: - Medium Widget
+// MARK: - Medium Widget (Liquid Glass)
 
 struct MediumCalendarView: View {
     let entry: KalendarEntry
@@ -294,14 +313,14 @@ struct MediumCalendarView: View {
             // Mini calendar
             VStack(spacing: 2) {
                 Text(entry.monthTitle)
-                    .font(.caption2.weight(.bold))
+                    .font(.system(.caption2, design: .rounded).weight(.bold))
                     .lineLimit(1)
 
                 HStack(spacing: 0) {
                     ForEach(weekdaySymbols().indices, id: \.self) { i in
                         Text(weekdaySymbols()[i])
-                            .font(.system(size: 7, weight: .medium))
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 7, weight: .medium, design: .rounded))
+                            .foregroundStyle(.tertiary)
                             .frame(maxWidth: .infinity)
                     }
                 }
@@ -315,11 +334,11 @@ struct MediumCalendarView: View {
                                     .frame(width: 14, height: 14)
                             }
                             Text("\(day.day)")
-                                .font(.system(size: 9, weight: day.isToday ? .bold : .regular))
+                                .font(.system(size: 9, weight: day.isToday ? .bold : .regular, design: .rounded))
                                 .foregroundStyle(
                                     day.isCurrentMonth
                                         ? (day.isToday ? Color.white : Color.primary)
-                                        : Color.secondary.opacity(0.3)
+                                        : Color.secondary.opacity(0.25)
                                 )
                         }
                         .frame(width: 16, height: 14)
@@ -328,26 +347,35 @@ struct MediumCalendarView: View {
             }
             .frame(maxWidth: .infinity)
 
-            Rectangle()
-                .fill(Color.secondary.opacity(0.2))
+            // Glass divider
+            RoundedRectangle(cornerRadius: 0.5)
+                .fill(
+                    LinearGradient(
+                        colors: [.clear, Color.secondary.opacity(0.2), .clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .frame(width: 1)
                 .padding(.vertical, 4)
 
             // Events
             VStack(alignment: .leading, spacing: 3) {
                 Text("Today")
-                    .font(.caption2.weight(.bold))
+                    .font(.system(.caption2, design: .rounded).weight(.bold))
 
                 if entry.todayEvents.isEmpty {
                     Text("No events")
-                        .font(.caption2)
+                        .font(.system(.caption2, design: .rounded))
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(entry.todayEvents.prefix(4), id: \.self) { title in
-                        HStack(spacing: 3) {
-                            Circle().fill(Color.accentColor).frame(width: 4, height: 4)
+                        HStack(spacing: 4) {
+                            RoundedRectangle(cornerRadius: 1, style: .continuous)
+                                .fill(Color.accentColor)
+                                .frame(width: 2.5, height: 10)
                             Text(title)
-                                .font(.system(size: 10))
+                                .font(.system(size: 10, design: .rounded))
                                 .lineLimit(1)
                         }
                     }
@@ -358,11 +386,20 @@ struct MediumCalendarView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(12)
-        .containerBackground(.background, for: .widget)
+        .containerBackground(for: .widget) {
+            ZStack {
+                Color(.systemBackground)
+                LinearGradient(
+                    colors: [Color.accentColor.opacity(0.06), .clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        }
     }
 }
 
-// MARK: - Large Widget
+// MARK: - Large Widget (Liquid Glass)
 
 struct LargeCalendarView: View {
     let entry: KalendarEntry
@@ -379,8 +416,8 @@ struct LargeCalendarView: View {
             HStack(spacing: 0) {
                 ForEach(weekdaySymbols().indices, id: \.self) { i in
                     Text(weekdaySymbols()[i])
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .font(.system(.caption2, design: .rounded).weight(.semibold))
+                        .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -398,7 +435,7 @@ struct LargeCalendarView: View {
                             .foregroundStyle(
                                 day.isCurrentMonth
                                     ? (day.isToday ? Color.white : Color.primary)
-                                    : Color.secondary.opacity(0.3)
+                                    : Color.secondary.opacity(0.25)
                             )
                     }
                     .frame(maxWidth: .infinity)
@@ -406,23 +443,34 @@ struct LargeCalendarView: View {
                 }
             }
 
-            Divider()
+            // Glass divider
+            RoundedRectangle(cornerRadius: 0.5)
+                .fill(
+                    LinearGradient(
+                        colors: [.clear, Color.secondary.opacity(0.2), .clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(height: 1)
 
             // Events
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text("Today's Events")
-                    .font(.caption.weight(.bold))
+                    .font(.system(.caption, design: .rounded).weight(.bold))
 
                 if entry.todayEvents.isEmpty {
                     Text("No events scheduled")
-                        .font(.caption)
+                        .font(.system(.caption, design: .rounded))
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(entry.todayEvents.prefix(3), id: \.self) { title in
                         HStack(spacing: 6) {
-                            Circle().fill(Color.accentColor).frame(width: 5, height: 5)
+                            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                                .fill(Color.accentColor)
+                                .frame(width: 3, height: 14)
                             Text(title)
-                                .font(.caption)
+                                .font(.system(.caption, design: .rounded))
                                 .lineLimit(1)
                         }
                     }
@@ -433,11 +481,20 @@ struct LargeCalendarView: View {
             Spacer(minLength: 0)
         }
         .padding()
-        .containerBackground(.background, for: .widget)
+        .containerBackground(for: .widget) {
+            ZStack {
+                Color(.systemBackground)
+                LinearGradient(
+                    colors: [Color.accentColor.opacity(0.06), .clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        }
     }
 }
 
-// MARK: - Lock Screen Widgets
+// MARK: - Lock Screen Widgets (Liquid Glass)
 
 struct LockScreenCircularView: View {
     let entry: KalendarEntry
@@ -449,7 +506,7 @@ struct LockScreenCircularView: View {
                 Text("\(Calendar.current.component(.day, from: entry.date))")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                 Text(shortMonth(entry.date))
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
                     .textCase(.uppercase)
             }
         }
@@ -472,20 +529,20 @@ struct LockScreenRectangularView: View {
                 Image(systemName: "calendar")
                     .font(.caption2)
                 Text(dayAndMonth(entry.date))
-                    .font(.caption2.weight(.semibold))
+                    .font(.system(.caption2, design: .rounded).weight(.semibold))
             }
 
             if let next = entry.nextEvent {
                 Text(next)
-                    .font(.caption.weight(.medium))
+                    .font(.system(.caption, design: .rounded).weight(.medium))
                     .lineLimit(2)
             } else if !entry.todayEvents.isEmpty {
                 Text("\(entry.todayEvents.count) event\(entry.todayEvents.count == 1 ? "" : "s") today")
-                    .font(.caption)
+                    .font(.system(.caption, design: .rounded))
                     .foregroundStyle(.secondary)
             } else {
                 Text("No upcoming events")
-                    .font(.caption)
+                    .font(.system(.caption, design: .rounded))
                     .foregroundStyle(.secondary)
             }
         }

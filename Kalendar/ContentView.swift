@@ -9,40 +9,85 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var viewModel = CalendarViewModel()
-@State private var showSettings = false
+    @State private var showSettings = false
     @State private var showEventEditor = false
     @AppStorage("accentColorName") private var accentColorName = "blue"
 
+    private var accent: Color { accentColorFor(accentColorName) }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    CalendarView(viewModel: viewModel)
+            ZStack {
+                // Ambient background gradient
+                LinearGradient(
+                    colors: [
+                        accent.opacity(0.08),
+                        Color(.systemBackground).opacity(0.5),
+                        accent.opacity(0.04),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
 
-                    DayTimelineView(viewModel: viewModel)
+                ScrollView {
+                    VStack(spacing: 16) {
+                        CalendarView(viewModel: viewModel)
 
-                    DayDetailView(viewModel: viewModel, onAddEvent: { showEventEditor = true })
+                        DayTimelineView(viewModel: viewModel)
+
+                        DayDetailView(viewModel: viewModel, onAddEvent: { showEventEditor = true })
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 32)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 32)
+                .scrollIndicators(.hidden)
             }
-            .scrollIndicators(.hidden)
             .navigationTitle("Kalendar")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { showEventEditor = true } label: {
                         Image(systemName: "plus")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(accent)
+                            .padding(8)
+                            .background {
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(
+                                        Circle()
+                                            .strokeBorder(.white.opacity(0.3), lineWidth: 0.5)
+                                    )
+                            }
                     }
+                    .buttonStyle(LiquidGlassButtonStyle())
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 16) {
+                    HStack(spacing: 12) {
                         Button { viewModel.goToToday() } label: {
                             Text("Today")
-                                .font(.subheadline.weight(.medium))
+                                .font(.subheadline.weight(.semibold))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 6)
+                                .glassPill()
                         }
+                        .buttonStyle(LiquidGlassButtonStyle())
+
                         Button { showSettings = true } label: {
                             Image(systemName: "gearshape")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(accent)
+                                .padding(8)
+                                .background {
+                                    Circle()
+                                        .fill(.ultraThinMaterial)
+                                        .overlay(
+                                            Circle()
+                                                .strokeBorder(.white.opacity(0.3), lineWidth: 0.5)
+                                        )
+                                }
                         }
+                        .buttonStyle(LiquidGlassButtonStyle())
                     }
                 }
             }
@@ -62,7 +107,7 @@ struct ContentView: View {
                 Task { await viewModel.checkExistingAccess() }
             }
         }
-        .tint(accentColorFor(accentColorName))
+        .tint(accent)
     }
 }
 
