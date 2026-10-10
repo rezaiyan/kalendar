@@ -287,3 +287,113 @@ struct EventQueryTests {
         #expect(vm.selectedDayEvents[1].title == "Afternoon")
     }
 }
+
+// MARK: - Regression Tests
+
+@Suite("Calendar Behaviour")
+struct CalendarBehaviourTests {
+
+    @Test("All-day events are normalized to whole days")
+    @MainActor
+    func allDayEventSpansWholeDays() async throws {
+        let (vm, _) = makeTestVM()
+        let cal = vm.calendar
+        let afternoon = cal.date(bySettingHour: 15, minute: 30, second: 0, of: Date())!
+
+        let event = try await vm.createEvent(title: "Trip", startDate: afternoon, endDate: afternoon, notes: nil, isAllDay: true)
+
+        #expect(event.startDate == cal.startOfDay(for: afternoon))
+        #expect(event.endDate == cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: afternoon)))
+    }
+
+    @Test("All-day event whose last day is before its first day is rejected")
+    @MainActor
+    func allDayEndBeforeStart() async {
+        let (vm, _) = makeTestVM()
+        let today = Date()
+        let yesterday = vm.calendar.date(byAdding: .day, value: -1, to: today)!
+
+        await #expect(throws: EventError.endBeforeStart) {
+            try await vm.createEvent(title: "Trip", startDate: today, endDate: yesterday, notes: nil, isAllDay: true)
+        }
+    }
+
+    @Test("Multi-day events appear on every day they span")
+    @MainActor
+    func multiDayEventOnEachDay() async throws {
+        let (vm, _) = makeTestVM()
+        let cal = vm.calendar
+        let start = cal.date(bySettingHour: 20, minute: 0, second: 0, of: Date())!
+        let end = cal.date(byAdding: .hour, value: 6, to: start)!
+
+        try await vm.createEvent(title: "Night Shift", startDate: start, endDate: end, notes: nil, isAllDay: false)
+
+        let nextDay = cal.date(byAdding: .day, value: 1, to: start)!
+        #expect(vm.hasEvents(on: start))
+        #expect(vm.hasEvents(on: nextDay))
+    }
+
+    @Test("Changing month keeps the selected day inside the displayed month")
+    @MainActor
+    func navigationKeepsSelectionInMonth() {
+        let (vm, _) = makeTestVM()
+
+        vm.nextMonth()
+        #expect(vm.calendar.isDate(vm.selectedDate, equalTo: vm.displayedMonth, toGranularity: .month))
+
+        vm.previousMonth()
+        vm.previousMonth()
+        #expect(vm.calendar.isDate(vm.selectedDate, equalTo: vm.displayedMonth, toGranularity: .month))
+
+        vm.goToToday()
+        #expect(vm.isShowingToday)
+    }
+
+    @Test("Selecting a day of an adjacent month navigates to that month")
+    @MainActor
+    func selectingAdjacentMonthDayNavigates() {
+        let (vm, _) = makeTestVM()
+        let nextMonthDay = vm.calendar.date(byAdding: .month, value: 1, to: vm.displayedMonth)!
+
+        vm.selectDate(nextMonthDay)
+
+        #expect(vm.calendar.isDate(vm.displayedMonth, equalTo: nextMonthDay, toGranularity: .month))
+        #expect(vm.isSelected(nextMonthDay))
+    }
+
+    @Test("Month grid always has 6 full weeks starting on the first weekday", arguments: [true, false])
+    @MainActor
+    func gridStartsOnFirstWeekday(startsMonday: Bool) {
+        let (vm, _) = makeTestVM()
+        let original = vm.startsWeekOnMonday
+        defer { vm.startsWeekOnMonday = original }
+
+        vm.startsWeekOnMonday = startsMonday
+
+        for offset in 0..<12 {
+            let days = vm.calendarDays(for: vm.monthOffset(offset))
+            #expect(days.count == 42)
+            #expect(vm.calendar.component(.weekday, from: days[0].date) == (startsMonday ? 2 : 1))
+            #expect(Set(days.map(\.id)).count == 42)
+        }
+        #expect(vm.weekdaySymbols.first == vm.calendar.shortStandaloneWeekdaySymbols[startsMonday ? 1 : 0])
+    }
+
+    @Test("Free slots skip time taken by events")
+    @MainActor
+    func freeSlotsAroundEvents() async throws {
+        let (vm, _) = makeTestVM()
+        let cal = vm.calendar
+        let today = Date()
+        let tenAM = cal.date(bySettingHour: 10, minute: 0, second: 0, of: today)!
+        let noon = cal.date(bySettingHour: 12, minute: 0, second: 0, of: today)!
+
+        try await vm.createEvent(title: "Focus", startDate: tenAM, endDate: noon, notes: nil, isAllDay: false)
+        vm.selectDate(today)
+
+        let slots = vm.selectedDayFreeSlots
+        #expect(slots.count == 2)
+        #expect(slots.first?.end == tenAM)
+        #expect(slots.last?.start == noon)
+    }
+}

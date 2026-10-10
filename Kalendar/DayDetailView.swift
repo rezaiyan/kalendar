@@ -11,93 +11,144 @@ struct DayDetailView: View {
     var viewModel: CalendarViewModel
     let onAddEvent: () -> Void
 
-    private var dateFormatter: DateFormatter {
-        let f = DateFormatter()
-        f.dateFormat = "EEEE, MMMM d"
-        return f
-    }
+    @State private var pendingDeletion: CalendarEvent?
+    @State private var errorMessage: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header
-            HStack {
-                Text(dateFormatter.string(from: viewModel.selectedDate))
-                    .font(.system(.headline, design: .rounded))
-                    .contentTransition(.numericText())
+        let events = viewModel.selectedDayEvents
 
-                Spacer()
-
-                Button(action: onAddEvent) {
-                    Image(systemName: "plus")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.accentColor)
-                        .frame(width: 32, height: 32)
-                        .background {
-                            Circle()
-                                .fill(.ultraThinMaterial)
-                                .overlay(
-                                    Circle()
-                                        .strokeBorder(.white.opacity(0.3), lineWidth: 0.5)
-                                )
-                        }
-                        .shadow(color: Color.accentColor.opacity(0.2), radius: 6, x: 0, y: 2)
-                }
-                .buttonStyle(LiquidGlassButtonStyle())
+        VStack(alignment: .leading, spacing: 14) {
+            CardHeader(title: title, subtitle: subtitle(count: events.count)) {
+                GlassIconButton(systemImage: "plus", accessibilityLabel: "New Event", size: 32, action: onAddEvent)
             }
 
-            // Event list
-            if viewModel.selectedDayEvents.isEmpty {
-                if viewModel.calendarAccessGranted {
-                    emptyState
-                } else {
-                    calendarAccessPrompt
-                }
+            if events.isEmpty {
+                emptyState
             } else {
-                ForEach(viewModel.selectedDayEvents) { event in
-                    EventRow(event: event)
+                VStack(spacing: 8) {
+                    ForEach(events) { event in
+                        EventRow(event: event)
+                            .contextMenu {
+                                if event.isLocal {
+                                    Button(role: .destructive) {
+                                        pendingDeletion = event
+                                    } label: {
+                                        Label("Delete Event", systemImage: "trash")
+                                    }
+                                }
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
                 }
+            }
+
+            if !viewModel.calendarAccessGranted {
+                calendarAccessPrompt
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard()
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.selectedDate)
+        .animation(Theme.spring, value: viewModel.selectedDate)
+        .animation(Theme.spring, value: events.map(\.id))
+        .confirmationDialog(
+            "Delete \u{201C}\(pendingDeletion?.title ?? "")\u{201D}?",
+            isPresented: Binding(get: { pendingDeletion != nil }, set: { if !$0 { pendingDeletion = nil } }),
+            titleVisibility: .visible,
+            presenting: pendingDeletion
+        ) { event in
+            Button("Delete Event", role: .destructive) { delete(event) }
+        } message: { _ in
+            Text("This event will be removed from Kalendar.")
+        }
+        .alert(
+            "Something Went Wrong",
+            isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "")
+        }
     }
 
+    // MARK: - Header Text
+
+    private var title: String {
+        let calendar = viewModel.calendar
+        let date = viewModel.selectedDate
+        let dayText = date.formatted(.dateTime.weekday(.wide).month(.wide).day())
+        if calendar.isDateInToday(date) { return "Today · " + date.formatted(.dateTime.month(.wide).day()) }
+        if calendar.isDateInTomorrow(date) { return "Tomorrow · " + date.formatted(.dateTime.month(.wide).day()) }
+        return dayText
+    }
+
+    private func subtitle(count: Int) -> String {
+        switch count {
+        case 0: "Nothing scheduled"
+        case 1: "1 event"
+        default: "\(count) events"
+        }
+    }
+
+    // MARK: - States
+
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "calendar")
-                .font(.system(size: 36))
-                .foregroundStyle(.quaternary)
-            Text("No Events")
-                .font(.system(.subheadline, design: .rounded).weight(.medium))
-                .foregroundStyle(.secondary)
-            Text("Tap + to create an event")
+        VStack(spacing: 8) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(.tint)
+                .symbolRenderingMode(.hierarchical)
+            Text("A free day")
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+            Text("Tap + to plan something.")
                 .font(.system(.caption, design: .rounded))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
+        .padding(.vertical, 18)
     }
 
     private var calendarAccessPrompt: some View {
-        VStack(spacing: 14) {
+        HStack(spacing: 12) {
             Image(systemName: "calendar.badge.plus")
-                .font(.system(size: 36))
-                .foregroundStyle(.secondary)
-            Text("Calendar Access Required")
-                .font(.system(.subheadline, design: .rounded).weight(.medium))
+                .font(.title2)
+                .foregroundStyle(.tint)
+                .symbolRenderingMode(.hierarchical)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Connect your calendars")
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                Text("See all your events in one place.")
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
             Button {
                 Task { await viewModel.requestCalendarAccess() }
             } label: {
-                Text("Grant Access")
+                Text("Connect")
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 8)
-                    .glassPill()
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(.tint, in: Capsule())
             }
-            .buttonStyle(LiquidGlassButtonStyle())
+            .buttonStyle(PressableButtonStyle())
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
+        .padding(12)
+        .background(.tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func delete(_ event: CalendarEvent) {
+        pendingDeletion = nil
+        Task {
+            do {
+                try await viewModel.deleteEvent(id: event.id)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
     }
 }
 
@@ -106,70 +157,69 @@ struct DayDetailView: View {
 struct EventRow: View {
     let event: CalendarEvent
 
+    @Environment(\.accent) private var accent
+
+    private var color: Color { event.displayColor(fallback: accent) }
+
     var body: some View {
         HStack(spacing: 12) {
-            // Glass color indicator
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [eventColor.opacity(0.9), eventColor.opacity(0.6)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: 4, height: 38)
-                .shadow(color: eventColor.opacity(0.4), radius: 3, x: 0, y: 0)
+            Capsule()
+                .fill(color.gradient)
+                .frame(width: 4)
+                .frame(maxHeight: .infinity)
+                .padding(.vertical, 2)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(event.title)
-                    .font(.system(.subheadline, design: .rounded).weight(.medium))
-                    .lineLimit(1)
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .lineLimit(2)
 
-                if event.isAllDay {
-                    Text("All Day")
+                Text(timeDescription)
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+
+                if let notes = event.notes, !notes.isEmpty {
+                    Text(notes)
                         .font(.system(.caption, design: .rounded))
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(timeRange)
-                        .font(.system(.caption, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 0)
+
+            if event.isLocal {
+                Image(systemName: "iphone")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .accessibilityLabel("Created in Kalendar")
+            }
         }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(eventColor.opacity(0.06))
-        )
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
-    private var eventColor: Color {
-        if let hex = event.calendarColorHex {
-            return Color(hex: hex)
+    private var timeDescription: String {
+        let calendar = Calendar.current
+        let start = event.startDate
+        let end = max(event.endDate, event.startDate)
+
+        if event.isAllDay {
+            // All-day end dates are exclusive (local) or 23:59:59 (EventKit); both mean "through the previous instant".
+            let lastDay = calendar.startOfDay(for: end.addingTimeInterval(-1))
+            guard lastDay > calendar.startOfDay(for: start) else { return "All day" }
+            return "All day · " + (start..<lastDay).formatted(.interval.month(.abbreviated).day())
         }
-        return .accentColor
-    }
-
-    private var timeRange: String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return "\(formatter.string(from: event.startDate)) - \(formatter.string(from: event.endDate))"
-    }
-}
-
-// MARK: - Color from Hex
-
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let r = Double((int >> 16) & 0xFF) / 255.0
-        let g = Double((int >> 8) & 0xFF) / 255.0
-        let b = Double(int & 0xFF) / 255.0
-        self.init(red: r, green: g, blue: b)
+        // An event ending exactly at midnight still belongs to the day it started.
+        let effectiveEnd = end > start ? end.addingTimeInterval(-1) : end
+        if calendar.isDate(start, inSameDayAs: effectiveEnd) {
+            return (start..<end).formatted(date: .omitted, time: .shortened)
+        }
+        return (start..<end).formatted(date: .abbreviated, time: .shortened)
     }
 }

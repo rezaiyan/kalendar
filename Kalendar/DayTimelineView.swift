@@ -9,214 +9,177 @@ import SwiftUI
 
 struct DayTimelineView: View {
     var viewModel: CalendarViewModel
+    /// Called when the user taps a free slot, e.g. to create an event there.
+    var onSelectSlot: (TimeSlot) -> Void = { _ in }
 
-    private let dayStartHour = 8
-    private let dayEndHour = 22
-    private var totalMinutes: CGFloat { CGFloat((dayEndHour - dayStartHour) * 60) }
+    @Environment(\.accent) private var accent
+
+    private static let trackHeight: CGFloat = 36
+    private static let blockHeight: CGFloat = 28
+    private static let labelHours = [8, 12, 16, 20]
 
     var body: some View {
-        let events = viewModel.selectedDayEvents.filter { !$0.isAllDay }
+        let window = viewModel.selectedDayWindow
+        let events = viewModel.selectedDayEvents.filter { !$0.isAllDay && overlaps($0, window) }
         let freeSlots = viewModel.selectedDayFreeSlots
 
-        VStack(alignment: .leading, spacing: 10) {
-            // Header
-            HStack {
-                Text("Timeline")
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
-
-                Spacer()
-
+        VStack(alignment: .leading, spacing: 12) {
+            CardHeader(title: "Timeline") {
                 if !freeSlots.isEmpty {
-                    let totalFree = freeSlots.reduce(0.0) { $0 + $1.end.timeIntervalSince($1.start) }
-                    let hours = Int(totalFree) / 3600
-                    let mins = (Int(totalFree) % 3600) / 60
-                    Text("\(hours)h \(mins)m free")
-                        .font(.system(.caption, design: .rounded).weight(.medium))
+                    Label(Self.durationText(freeSlots.reduce(0) { $0 + $1.duration }) + " free", systemImage: "leaf.fill")
+                        .font(.system(.caption, design: .rounded).weight(.semibold))
                         .foregroundStyle(.green)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(.green.opacity(0.1), in: Capsule())
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(.green.opacity(0.12), in: Capsule())
                 }
             }
 
-            // Timeline bar
-            GeometryReader { geo in
-                let width = geo.size.width
-
-                ZStack(alignment: .leading) {
-                    // Glass track background
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .frame(height: 36)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(.white.opacity(0.2), lineWidth: 0.5)
-                        )
-
-                    // Free slot markers
-                    ForEach(Array(freeSlots.enumerated()), id: \.offset) { _, slot in
-                        let x = xPosition(for: slot.start, width: width)
-                        let w = slotWidth(from: slot.start, to: slot.end, totalWidth: width)
-
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(Color.green.opacity(0.12))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .strokeBorder(Color.green.opacity(0.2), lineWidth: 0.5)
-                            )
-                            .frame(width: max(w, 2), height: 30)
-                            .offset(x: x)
-                    }
-
-                    // Event blocks with glass effect
-                    ForEach(events) { event in
-                        let x = xPosition(for: event.startDate, width: width)
-                        let w = slotWidth(from: event.startDate, to: event.endDate, totalWidth: width)
-                        let color = eventColor(event)
-
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(color.opacity(0.75))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [.white.opacity(0.25), .clear],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-                            )
-                            .frame(width: max(w, 4), height: 30)
-                            .offset(x: x)
-                            .shadow(color: color.opacity(0.3), radius: 4, x: 0, y: 2)
-                    }
-
-                    // Current time indicator
-                    if isToday {
-                        let nowX = xPosition(for: Date(), width: width)
-                        if nowX >= 0 && nowX <= width {
-                            Capsule()
-                                .fill(Color.red)
-                                .frame(width: 2.5, height: 40)
-                                .offset(x: nowX)
-                                .shadow(color: .red.opacity(0.5), radius: 4, x: 0, y: 0)
-
-                            Circle()
-                                .fill(Color.red)
-                                .frame(width: 7, height: 7)
-                                .shadow(color: .red.opacity(0.5), radius: 3, x: 0, y: 0)
-                                .offset(x: nowX - 2.25, y: -20)
-                        }
-                    }
-                }
-
-                // Hour labels
-                HStack {
-                    ForEach([8, 12, 16, 20], id: \.self) { hour in
-                        let label = hour <= 12 ? "\(hour)am" : "\(hour - 12)pm"
-                        Text(hour == 12 ? "12pm" : label)
-                            .font(.system(size: 9, weight: .medium, design: .rounded))
-                            .foregroundStyle(.quaternary)
-                            .position(
-                                x: xPosition(forHour: hour, width: width),
-                                y: 50
-                            )
-                    }
-                }
+            // Re-render every minute so the "now" marker keeps moving.
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                track(window: window, events: events, freeSlots: freeSlots, now: context.date)
             }
-            .frame(height: 60)
+            .frame(height: Self.trackHeight + 20)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilitySummary(events: events, freeSlots: freeSlots))
 
-            // Free slot pills
             if !freeSlots.isEmpty && !events.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(Array(freeSlots.enumerated()), id: \.offset) { _, slot in
-                            FreeSlotPill(start: slot.start, end: slot.end)
+                    HStack(spacing: 8) {
+                        ForEach(freeSlots) { slot in
+                            Button { onSelectSlot(slot) } label: {
+                                FreeSlotPill(slot: slot)
+                            }
+                            .buttonStyle(PressableButtonStyle())
+                            .accessibilityHint("Creates an event in this free time")
                         }
                     }
+                    .padding(.vertical, 4)
                 }
+                .scrollClipDisabled()
             }
         }
         .glassCard()
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.selectedDate)
+        .animation(Theme.spring, value: viewModel.selectedDate)
     }
 
-    // MARK: - Helpers
+    // MARK: - Track
 
-    private var isToday: Bool {
-        Calendar.current.isDateInToday(viewModel.selectedDate)
-    }
+    private func track(window: DateInterval, events: [CalendarEvent], freeSlots: [TimeSlot], now: Date) -> some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let blockY = (Self.trackHeight - Self.blockHeight) / 2
 
-    private func minutesFromDayStart(_ date: Date) -> CGFloat {
-        let cal = Calendar.current
-        let hour = cal.component(.hour, from: date)
-        let minute = cal.component(.minute, from: date)
-        return CGFloat((hour - dayStartHour) * 60 + minute)
-    }
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: Theme.Radius.chip, style: .continuous)
+                            .strokeBorder(.white.opacity(0.2), lineWidth: 0.5)
+                    }
+                    .frame(height: Self.trackHeight)
 
-    private func xPosition(for date: Date, width: CGFloat) -> CGFloat {
-        let mins = max(0, min(minutesFromDayStart(date), totalMinutes))
-        return (mins / totalMinutes) * width
-    }
+                ForEach(freeSlots) { slot in
+                    let frame = blockFrame(start: slot.start, end: slot.end, window: window, width: width, minWidth: 2)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.green.opacity(0.12))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(Color.green.opacity(0.25), lineWidth: 0.5)
+                        }
+                        .frame(width: frame.width, height: Self.blockHeight)
+                        .offset(x: frame.minX, y: blockY)
+                }
 
-    private func xPosition(forHour hour: Int, width: CGFloat) -> CGFloat {
-        let mins = CGFloat((hour - dayStartHour) * 60)
-        return (mins / totalMinutes) * width
-    }
+                ForEach(events) { event in
+                    let frame = blockFrame(start: event.startDate, end: event.endDate, window: window, width: width, minWidth: 4)
+                    let color = event.displayColor(fallback: accent)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(color.opacity(0.8).gradient)
+                        .frame(width: frame.width, height: Self.blockHeight)
+                        .shadow(color: color.opacity(0.3), radius: 4, x: 0, y: 2)
+                        .offset(x: frame.minX, y: blockY)
+                }
 
-    private func slotWidth(from start: Date, to end: Date, totalWidth: CGFloat) -> CGFloat {
-        let startMins = max(0, minutesFromDayStart(start))
-        let endMins = min(totalMinutes, minutesFromDayStart(end))
-        let duration = max(0, endMins - startMins)
-        return (duration / totalMinutes) * totalWidth
-    }
+                if window.contains(now) {
+                    let x = xPosition(for: now, window: window, width: width)
+                    Capsule()
+                        .fill(Color.red)
+                        .frame(width: 2, height: Self.trackHeight + 6)
+                        .overlay(alignment: .top) {
+                            Circle().fill(Color.red).frame(width: 7, height: 7).offset(y: -3)
+                        }
+                        .shadow(color: .red.opacity(0.5), radius: 3)
+                        .offset(x: x - 1, y: -3)
+                }
 
-    private func eventColor(_ event: CalendarEvent) -> Color {
-        if let hex = event.calendarColorHex {
-            return Color(hex: hex)
+                ForEach(Self.labelHours, id: \.self) { hour in
+                    if let date = Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: window.start) {
+                        Text(date.formatted(.dateTime.hour()))
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(.tertiary)
+                            .fixedSize()
+                            .position(x: xPosition(for: date, window: window, width: width), y: Self.trackHeight + 12)
+                    }
+                }
+            }
         }
-        return .accentColor
+    }
+
+    // MARK: - Geometry
+
+    private func overlaps(_ event: CalendarEvent, _ window: DateInterval) -> Bool {
+        event.startDate < window.end && event.endDate > window.start
+    }
+
+    private func xPosition(for date: Date, window: DateInterval, width: CGFloat) -> CGFloat {
+        guard window.duration > 0 else { return 0 }
+        let fraction = date.timeIntervalSince(window.start) / window.duration
+        return CGFloat(min(max(fraction, 0), 1)) * width
+    }
+
+    /// Horizontal extent of a block, clamped to the window and kept inside the track.
+    private func blockFrame(start: Date, end: Date, window: DateInterval, width: CGFloat, minWidth: CGFloat) -> CGRect {
+        let minX = xPosition(for: start, window: window, width: width)
+        let maxX = xPosition(for: end, window: window, width: width)
+        let blockWidth = min(max(maxX - minX, minWidth), width)
+        return CGRect(x: min(minX, width - blockWidth), y: 0, width: blockWidth, height: 0)
+    }
+
+    // MARK: - Text
+
+    static func durationText(_ interval: TimeInterval) -> String {
+        Duration.seconds(Int(interval)).formatted(.units(allowed: [.hours, .minutes], width: .narrow))
+    }
+
+    private func accessibilitySummary(events: [CalendarEvent], freeSlots: [TimeSlot]) -> String {
+        let eventPart = events.isEmpty ? "No timed events" : (events.count == 1 ? "1 timed event" : "\(events.count) timed events")
+        let free = freeSlots.reduce(0) { $0 + $1.duration }
+        return free > 0 ? "\(eventPart), \(Self.durationText(free)) free" : eventPart
     }
 }
 
 // MARK: - Free Slot Pill
 
 private struct FreeSlotPill: View {
-    let start: Date
-    let end: Date
-
-    private var timeFormatter: DateFormatter {
-        let f = DateFormatter()
-        f.timeStyle = .short
-        return f
-    }
-
-    private var duration: String {
-        let mins = Int(end.timeIntervalSince(start)) / 60
-        if mins >= 60 {
-            let h = mins / 60
-            let m = mins % 60
-            return m > 0 ? "\(h)h \(m)m" : "\(h)h"
-        }
-        return "\(mins)m"
-    }
+    let slot: TimeSlot
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             Circle()
                 .fill(Color.green)
-                .frame(width: 5, height: 5)
-                .shadow(color: .green.opacity(0.5), radius: 2, x: 0, y: 0)
+                .frame(width: 6, height: 6)
 
-            Text("\(timeFormatter.string(from: start)) - \(timeFormatter.string(from: end))")
-                .font(.system(size: 11, design: .rounded))
+            Text((slot.start..<slot.end).formatted(date: .omitted, time: .shortened))
+                .font(.system(size: 12, design: .rounded))
+                .foregroundStyle(.primary)
 
-            Text(duration)
-                .font(.system(size: 10, design: .rounded).weight(.medium))
+            Text(DayTimelineView.durationText(slot.duration))
+                .font(.system(size: 11, design: .rounded).weight(.semibold))
                 .foregroundStyle(.green)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
         .glassPill()
     }
 }

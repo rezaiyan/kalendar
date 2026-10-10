@@ -10,12 +10,17 @@ import WidgetKit
 
 @main
 struct KalendarApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-                    WidgetCenter.shared.reloadAllTimelines()
-                }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Keep widgets in sync with anything that changed while the app was open.
+            if phase == .background {
+                WidgetCenter.shared.reloadAllTimelines()
+            }
         }
     }
 }

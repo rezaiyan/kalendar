@@ -9,6 +9,29 @@ import Foundation
 import EventKit
 import UIKit
 
+// MARK: - Shared Storage
+
+enum SharedStorage {
+    static let appGroupID = "group.com.alirezaiyan.Kalendar"
+    static let selectedCalendarsKey = "selectedCalendarIDs"
+    static let startOfWeekMondayKey = "startOfWeekMonday"
+    static let localEventsFileName = "local_events.json"
+
+    static var defaults: UserDefaults {
+        UserDefaults(suiteName: appGroupID) ?? .standard
+    }
+
+    /// Week starts on Monday unless the user explicitly turned it off.
+    static var startsWeekOnMonday: Bool {
+        defaults.object(forKey: startOfWeekMondayKey) as? Bool ?? true
+    }
+
+    static var containerURL: URL {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)
+            ?? URL.documentsDirectory
+    }
+}
+
 // MARK: - Calendar Event Model
 
 struct CalendarEvent: Identifiable, Equatable, Codable {
@@ -52,11 +75,11 @@ enum EventError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .emptyTitle:
-            return "Event title cannot be empty"
+            "Event title cannot be empty"
         case .endBeforeStart:
-            return "End date must be after start date"
+            "End date must be after start date"
         case .saveFailed(let message):
-            return message
+            message
         }
     }
 }
@@ -75,19 +98,10 @@ protocol EventRepository {
 
 @MainActor
 final class LocalEventStore {
-    private static let fileName = "local_events.json"
-
-    private static var defaultFileURL: URL {
-        let container = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.alirezaiyan.Kalendar"
-        ) ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        return container.appendingPathComponent(fileName)
-    }
-
     private let fileURL: URL
 
     init(fileURL: URL? = nil) {
-        self.fileURL = fileURL ?? Self.defaultFileURL
+        self.fileURL = fileURL ?? SharedStorage.containerURL.appendingPathComponent(SharedStorage.localEventsFileName)
     }
 
     func loadEvents() -> [CalendarEvent] {
@@ -98,21 +112,21 @@ final class LocalEventStore {
         return events
     }
 
-    func saveEvents(_ events: [CalendarEvent]) {
-        guard let data = try? JSONEncoder().encode(events) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+    func saveEvents(_ events: [CalendarEvent]) throws {
+        let data = try JSONEncoder().encode(events)
+        try data.write(to: fileURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 
-    func addEvent(_ event: CalendarEvent) {
+    func addEvent(_ event: CalendarEvent) throws {
         var events = loadEvents()
         events.append(event)
-        saveEvents(events)
+        try saveEvents(events)
     }
 
-    func deleteEvent(id: String) {
+    func deleteEvent(id: String) throws {
         var events = loadEvents()
         events.removeAll { $0.id == id }
-        saveEvents(events)
+        try saveEvents(events)
     }
 
     func fetchEvents(from start: Date, to end: Date) -> [CalendarEvent] {
@@ -127,33 +141,27 @@ final class EKEventRepository: EventRepository {
     private var store = EKEventStore()
     private var hasRefreshedStore = false
 
+    /// A store created before access was granted never sees calendars, so recreate it once.
+    private func refreshStoreIfNeeded() {
+        guard !hasRefreshedStore else { return }
+        store = EKEventStore()
+        hasRefreshedStore = true
+    }
+
     func checkAccess() async -> Bool {
-        let status = EKEventStore.authorizationStatus(for: .event)
-        if status == .fullAccess {
-            if !hasRefreshedStore {
-                store = EKEventStore()
-                hasRefreshedStore = true
-            }
-            return true
-        }
-        return false
+        guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return false }
+        refreshStoreIfNeeded()
+        return true
     }
 
     func requestAccess() async -> Bool {
-        let status = EKEventStore.authorizationStatus(for: .event)
-        switch status {
+        switch EKEventStore.authorizationStatus(for: .event) {
         case .notDetermined:
             let granted = (try? await store.requestFullAccessToEvents()) ?? false
-            if granted {
-                store = EKEventStore()
-                hasRefreshedStore = true
-            }
+            if granted { refreshStoreIfNeeded() }
             return granted
         case .fullAccess:
-            if !hasRefreshedStore {
-                store = EKEventStore()
-                hasRefreshedStore = true
-            }
+            refreshStoreIfNeeded()
             return true
         default:
             if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -164,27 +172,35 @@ final class EKEventRepository: EventRepository {
     }
 
     func availableCalendars() -> [CalendarSource] {
-        store.calendars(for: .event).map { cal in
-            CalendarSource(
-                id: cal.calendarIdentifier,
-                title: cal.title,
-                colorHex: cal.cgColor.hexString,
-                accountName: cal.source?.title ?? ""
-            )
-        }.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        store.calendars(for: .event)
+            .map { cal in
+                CalendarSource(
+                    id: cal.calendarIdentifier,
+                    title: cal.title,
+                    colorHex: cal.cgColor.hexString,
+                    accountName: cal.source?.title ?? ""
+                )
+            }
+            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
     func fetchEvents(from start: Date, to end: Date, calendarIDs: Set<String>?) async -> [CalendarEvent] {
         let store = self.store
-        let calendars: [EKCalendar]? = calendarIDs.map { ids in
+        let selected = calendarIDs.map { ids in
             store.calendars(for: .event).filter { ids.contains($0.calendarIdentifier) }
         }
-        return await Task.detached {
+        // A selection whose calendars no longer exist falls back to all calendars (`nil`), matching the widget.
+        let calendars = selected?.isEmpty == false ? selected : nil
+
+        return await Task.detached(priority: .userInitiated) {
             let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
             return store.events(matching: predicate).map { ek in
-                CalendarEvent(
-                    id: ek.eventIdentifier,
-                    title: ek.title ?? "Untitled",
+                // Occurrences of a recurring event share one identifier; make each occurrence unique.
+                let baseID = ek.eventIdentifier ?? ek.calendarItemIdentifier
+                let title = ek.title ?? ""
+                return CalendarEvent(
+                    id: "\(baseID)@\(Int(ek.startDate.timeIntervalSince1970))",
+                    title: title.isEmpty ? "Untitled" : title,
                     startDate: ek.startDate,
                     endDate: ek.endDate,
                     isAllDay: ek.isAllDay,
@@ -199,11 +215,13 @@ final class EKEventRepository: EventRepository {
 // MARK: - CGColor Hex Helper
 
 private extension CGColor {
+    /// sRGB hex string; converts grayscale / P3 colors first so every calendar keeps its real color.
     var hexString: String {
-        guard let components = components, components.count >= 3 else { return "#007AFF" }
-        let r = Int(components[0] * 255)
-        let g = Int(components[1] * 255)
-        let b = Int(components[2] * 255)
-        return String(format: "#%02X%02X%02X", r, g, b)
+        let srgb = CGColorSpace(name: CGColorSpace.sRGB).flatMap {
+            converted(to: $0, intent: .defaultIntent, options: nil)
+        } ?? self
+        guard let components = srgb.components, components.count >= 3 else { return "#007AFF" }
+        func channel(_ value: CGFloat) -> Int { Int((min(max(value, 0), 1) * 255).rounded()) }
+        return String(format: "#%02X%02X%02X", channel(components[0]), channel(components[1]), channel(components[2]))
     }
 }
