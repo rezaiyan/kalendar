@@ -397,3 +397,24 @@ struct CalendarBehaviourTests {
         #expect(slots.last?.start == noon)
     }
 }
+
+// MARK: - Deep Link Tests
+
+@Suite("Deep Links")
+struct DeepLinkTests {
+
+    @Test("Widget URLs parse into deep links")
+    func parsesWidgetURLs() throws {
+        let date = Date(timeIntervalSince1970: 1_728_518_400)
+
+        #expect(DeepLink(url: try #require(URL(string: "kalendar://day?t=1728518400"))) == .day(date))
+        #expect(DeepLink(url: try #require(URL(string: "kalendar://new?t=1728518400"))) == .newEvent(date))
+    }
+
+    @Test("Unknown or malformed URLs are ignored")
+    func ignoresInvalidURLs() throws {
+        #expect(DeepLink(url: try #require(URL(string: "kalendar://day"))) == nil)
+        #expect(DeepLink(url: try #require(URL(string: "kalendar://week?t=1"))) == nil)
+        #expect(DeepLink(url: try #require(URL(string: "https://day?t=1"))) == nil)
+    }
+}

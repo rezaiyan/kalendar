@@ -73,6 +73,24 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
             viewModel.refreshToday()
         }
+        .onOpenURL { url in
+            handle(DeepLink(url: url))
+        }
+    }
+
+    /// Widget taps: show the tapped day, or start a new event on it.
+    private func handle(_ link: DeepLink?) {
+        guard let link else { return }
+        showSettings = false
+        viewModel.showCalendarPicker = false
+        switch link {
+        case .day(let date):
+            draft = nil
+            withAnimation(Theme.spring) { viewModel.selectDate(date) }
+        case .newEvent(let date):
+            viewModel.selectDate(date)
+            draft = EventDraft(start: viewModel.selectedDate, end: nil)
+        }
     }
 
     @ToolbarContentBuilder
