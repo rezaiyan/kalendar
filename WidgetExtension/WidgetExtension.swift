@@ -69,9 +69,12 @@ struct CalendarWidgetDay: Identifiable {
     let day: Int
     let isCurrentMonth: Bool
     let isToday: Bool
-    let hasEvents: Bool
+    let isWeekend: Bool
+    /// Colors of up to three distinct calendars with events on this day.
+    let eventColors: [Color]
 
     var id: Date { date }
+    var hasEvents: Bool { !eventColors.isEmpty }
 }
 
 struct WidgetEvent: Identifiable, Hashable {
@@ -186,9 +189,22 @@ enum EntryBuilder {
                 day: calendar.component(.day, from: day),
                 isCurrentMonth: calendar.isDate(day, equalTo: monthStart, toGranularity: .month),
                 isToday: calendar.isDate(day, inSameDayAs: date),
-                hasEvents: events.contains { $0.overlaps(start: day, end: next) }
+                isWeekend: calendar.isDateInWeekend(day),
+                eventColors: eventColors(on: day, until: next, events: events)
             )
         }
+    }
+
+    private static func eventColors(on day: Date, until next: Date, events: [WidgetEvent]) -> [Color] {
+        var seen = Set<String>()
+        var colors: [Color] = []
+        for event in events where event.overlaps(start: day, end: next) {
+            let colorID = event.colorHex ?? "accent"
+            guard seen.insert(colorID).inserted else { continue }
+            colors.append(event.color)
+            if colors.count == 3 { break }
+        }
+        return colors
     }
 
     /// Realistic sample content for the widget gallery and previews.
@@ -204,6 +220,12 @@ enum EntryBuilder {
             WidgetEvent(id: "3", title: "Yoga", startDate: at(18), endDate: at(19), isAllDay: false, colorHex: "#30D158"),
             WidgetEvent(id: "4", title: "Team Standup", startDate: at(9, dayOffset: 1), endDate: at(9, 15, dayOffset: 1),
                         isAllDay: false, colorHex: "#0A84FF"),
+            WidgetEvent(id: "5", title: "Dentist", startDate: at(15, dayOffset: 3), endDate: at(16, dayOffset: 3),
+                        isAllDay: false, colorHex: "#FF375F"),
+            WidgetEvent(id: "6", title: "Workshop", startDate: at(9, dayOffset: -4), endDate: at(17, dayOffset: -4),
+                        isAllDay: false, colorHex: "#5E5CE6"),
+            WidgetEvent(id: "7", title: "Dinner", startDate: at(19, dayOffset: -4), endDate: at(21, dayOffset: -4),
+                        isAllDay: false, colorHex: "#FF9F0A"),
         ]
         return entry(for: date, events: events, calendar: calendar)
     }
@@ -470,36 +492,57 @@ private struct AddEventLink: View {
     }
 }
 
+/// A month grid whose six rows stretch to fill the height it is given.
 private struct MonthGrid: View {
     let entry: KalendarEntry
-    let fontSize: CGFloat
-    let cellHeight: CGFloat
-    var showsEventDots = false
+    var style: Style = .regular
     var linksToDays = false
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
+    struct Style {
+        let fontSize: CGFloat
+        /// Diameter of the "today" circle.
+        let todaySize: CGFloat
+        /// Event dot diameter; 0 hides dots.
+        let dotSize: CGFloat
+        let weekdaySize: CGFloat
+
+        static let compact = Style(fontSize: 10, todaySize: 16, dotSize: 0, weekdaySize: 8)
+        static let regular = Style(fontSize: 12, todaySize: 20, dotSize: 3, weekdaySize: 9)
+        static let large = Style(fontSize: 16, todaySize: 30, dotSize: 5, weekdaySize: 11)
+    }
 
     var body: some View {
-        VStack(spacing: 2) {
+        let weeks = stride(from: 0, to: entry.days.count, by: 7).map { Array(entry.days[$0..<min($0 + 7, entry.days.count)]) }
+
+        VStack(spacing: 0) {
             HStack(spacing: 0) {
-                ForEach(Array(entry.weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
+                ForEach(Array(entry.weekdaySymbols.enumerated()), id: \.offset) { index, symbol in
                     Text(symbol)
-                        .font(.system(size: max(fontSize - 3, 7), weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: style.weekdaySize, weight: .semibold, design: .rounded))
+                        .foregroundStyle(isWeekendColumn(index, weeks: weeks) ? HierarchicalShapeStyle.tertiary : HierarchicalShapeStyle.secondary)
                         .frame(maxWidth: .infinity)
                 }
             }
+            .padding(.bottom, style.weekdaySize * 0.4)
 
-            LazyVGrid(columns: columns, spacing: 0) {
-                ForEach(entry.days) { day in
-                    if linksToDays {
-                        Link(destination: WidgetDeepLink.day(day.date)) { cell(day) }
-                    } else {
-                        cell(day)
+            ForEach(weeks.indices, id: \.self) { row in
+                HStack(spacing: 0) {
+                    ForEach(weeks[row]) { day in
+                        if linksToDays {
+                            Link(destination: WidgetDeepLink.day(day.date)) { cell(day) }
+                        } else {
+                            cell(day)
+                        }
                     }
                 }
+                .frame(maxHeight: .infinity)
             }
         }
+    }
+
+    private func isWeekendColumn(_ index: Int, weeks: [[CalendarWidgetDay]]) -> Bool {
+        guard let firstWeek = weeks.first, index < firstWeek.count else { return false }
+        return firstWeek[index].isWeekend
     }
 
     private func cell(_ day: CalendarWidgetDay) -> some View {
@@ -507,23 +550,43 @@ private struct MonthGrid: View {
             if day.isToday {
                 Circle()
                     .fill(Color.accentColor)
-                    .frame(width: cellHeight - 1, height: cellHeight - 1)
                     .widgetAccentable()
             }
             Text("\(day.day)")
-                .font(.system(size: fontSize, weight: day.isToday ? .bold : .medium, design: .rounded))
+                .font(.system(size: style.fontSize, weight: day.isToday ? .bold : .medium, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(day.isToday ? AnyShapeStyle(.white) : (day.isCurrentMonth ? AnyShapeStyle(.primary) : AnyShapeStyle(.quaternary)))
-
-            if showsEventDots && day.hasEvents && day.isCurrentMonth && !day.isToday {
-                Circle()
-                    .fill(.secondary)
-                    .frame(width: 3, height: 3)
-                    .offset(y: cellHeight / 2 - 2)
+                .foregroundStyle(numberStyle(day))
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+        }
+        .frame(width: style.todaySize, height: style.todaySize)
+        .overlay(alignment: .bottom) {
+            if style.dotSize > 0 && day.isCurrentMonth && !day.isToday && day.hasEvents {
+                HStack(spacing: style.dotSize * 0.5) {
+                    ForEach(Array(day.eventColors.enumerated()), id: \.offset) { _, color in
+                        Circle()
+                            .fill(color)
+                            .frame(width: style.dotSize, height: style.dotSize)
+                    }
+                }
+                .widgetAccentable()
+                .offset(y: style.dotSize + 1)
             }
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: cellHeight)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText(day))
+    }
+
+    private func numberStyle(_ day: CalendarWidgetDay) -> AnyShapeStyle {
+        if day.isToday { return AnyShapeStyle(.white) }
+        if !day.isCurrentMonth { return AnyShapeStyle(.quaternary) }
+        return day.isWeekend ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary)
+    }
+
+    private func accessibilityText(_ day: CalendarWidgetDay) -> String {
+        let date = day.date.formatted(date: .complete, time: .omitted)
+        return day.hasEvents ? "\(date), has events" : date
     }
 }
 
@@ -627,7 +690,8 @@ struct LargeCalendarView: View {
                 AddEventLink(date: entry.date)
             }
 
-            MonthGrid(entry: entry, fontSize: 13, cellHeight: 23, showsEventDots: true, linksToDays: true)
+            MonthGrid(entry: entry, style: .regular, linksToDays: true)
+                .frame(height: 150)
 
             Divider()
 
@@ -647,21 +711,97 @@ struct LargeCalendarView: View {
     }
 }
 
-// MARK: - Small: Month
+// MARK: - Month Widget
 
+/// Small: the month grid alone.
 struct SmallMonthView: View {
     let entry: KalendarEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(entry.date.formatted(.dateTime.month(.wide)).uppercased())
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(.tint)
                 .widgetAccentable()
-            MonthGrid(entry: entry, fontSize: 10, cellHeight: 14, showsEventDots: true)
+                .lineLimit(1)
+            MonthGrid(entry: entry, style: .compact)
         }
         .widgetBackground()
         .widgetURL(WidgetDeepLink.day(entry.date))
+    }
+}
+
+/// Medium: today's date beside the month grid.
+struct MediumMonthView: View {
+    let entry: KalendarEntry
+
+    var body: some View {
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.date.formatted(.dateTime.month(.wide)).uppercased())
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.tint)
+                    .widgetAccentable()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(entry.date.formatted(.dateTime.day()))
+                    .font(.system(size: 44, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                Text(entry.date.formatted(.dateTime.weekday(.wide)))
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Text(entry.todayEvents.isEmpty ? "No events" : (entry.todayEvents.count == 1 ? "1 event" : "\(entry.todayEvents.count) events"))
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 88, alignment: .leading)
+
+            MonthGrid(entry: entry, style: .compact, linksToDays: true)
+        }
+        .widgetBackground()
+        .widgetURL(WidgetDeepLink.day(entry.date))
+    }
+}
+
+/// Large: a full-size month with tappable days and colored event dots.
+struct LargeMonthView: View {
+    let entry: KalendarEntry
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(entry.date.formatted(.dateTime.month(.wide)))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                Text(entry.date.formatted(.dateTime.year()))
+                    .font(.system(size: 22, weight: .regular, design: .rounded))
+                    .foregroundStyle(.tint)
+                    .widgetAccentable()
+                Spacer()
+                AddEventLink(date: entry.date)
+            }
+
+            MonthGrid(entry: entry, style: .large, linksToDays: true)
+        }
+        .widgetBackground()
+        .widgetURL(WidgetDeepLink.day(entry.date))
+    }
+}
+
+struct MonthWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    let entry: KalendarEntry
+
+    var body: some View {
+        switch family {
+        case .systemLarge:
+            LargeMonthView(entry: entry)
+        case .systemMedium:
+            MediumMonthView(entry: entry)
+        default:
+            SmallMonthView(entry: entry)
+        }
     }
 }
 
@@ -766,11 +906,11 @@ struct MonthWidget: Widget {
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: KalendarProvider()) { entry in
-            SmallMonthView(entry: entry)
+            MonthWidgetView(entry: entry)
         }
         .configurationDisplayName("Month")
-        .description("The whole month at a glance.")
-        .supportedFamilies([.systemSmall])
+        .description("A clear view of the whole month.")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
@@ -817,6 +957,18 @@ struct WidgetEntryView: View {
 }
 
 #Preview("Month", as: .systemSmall) {
+    MonthWidget()
+} timeline: {
+    EntryBuilder.sample()
+}
+
+#Preview("Month Medium", as: .systemMedium) {
+    MonthWidget()
+} timeline: {
+    EntryBuilder.sample()
+}
+
+#Preview("Month Large", as: .systemLarge) {
     MonthWidget()
 } timeline: {
     EntryBuilder.sample()
