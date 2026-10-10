@@ -789,12 +789,73 @@ struct LargeMonthView: View {
     }
 }
 
+/// Extra large (iPad): the full month beside today's and tomorrow's agenda.
+struct ExtraLargeMonthView: View {
+    let entry: KalendarEntry
+
+    var body: some View {
+        HStack(spacing: 24) {
+            VStack(spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(entry.date.formatted(.dateTime.month(.wide)))
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                    Text(entry.date.formatted(.dateTime.year()))
+                        .font(.system(size: 24, weight: .regular, design: .rounded))
+                        .foregroundStyle(.tint)
+                        .widgetAccentable()
+                    Spacer()
+                }
+
+                MonthGrid(entry: entry, style: .large, linksToDays: true)
+            }
+            .frame(maxWidth: .infinity)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .center) {
+                    DateBadge(date: entry.date, daySize: 30)
+                    Spacer()
+                    AddEventLink(date: entry.date)
+                }
+
+                agendaSection(
+                    title: "Today",
+                    agenda: KalendarEntry.Agenda(date: entry.date, isTomorrow: false, events: entry.remainingToday)
+                )
+                agendaSection(
+                    title: "Tomorrow",
+                    agenda: KalendarEntry.Agenda(date: entry.tomorrow, isTomorrow: true, events: entry.tomorrowEvents)
+                )
+
+                Spacer(minLength: 0)
+            }
+            .frame(width: 240, alignment: .leading)
+        }
+        .widgetBackground()
+        .widgetURL(WidgetDeepLink.day(entry.date))
+    }
+
+    private func agendaSection(title: String, agenda: KalendarEntry.Agenda) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            SectionLabel(text: title)
+            if agenda.events.isEmpty {
+                EmptyAgenda(agenda: agenda)
+            } else {
+                AgendaList(events: agenda.events, now: entry.date, limit: 3, linkDate: agenda.date)
+            }
+        }
+    }
+}
+
 struct MonthWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: KalendarEntry
 
     var body: some View {
         switch family {
+        case .systemExtraLarge:
+            ExtraLargeMonthView(entry: entry)
         case .systemLarge:
             LargeMonthView(entry: entry)
         case .systemMedium:
@@ -910,7 +971,8 @@ struct MonthWidget: Widget {
         }
         .configurationDisplayName("Month")
         .description("A clear view of the whole month.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        // Extra large is offered on iPad only.
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge])
     }
 }
 
@@ -969,6 +1031,12 @@ struct WidgetEntryView: View {
 }
 
 #Preview("Month Large", as: .systemLarge) {
+    MonthWidget()
+} timeline: {
+    EntryBuilder.sample()
+}
+
+#Preview("Month Extra Large", as: .systemExtraLarge) {
     MonthWidget()
 } timeline: {
     EntryBuilder.sample()
