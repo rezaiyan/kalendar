@@ -10,125 +10,113 @@ import SwiftUI
 struct CalendarView: View {
     var viewModel: CalendarViewModel
 
+    /// -1 / 0 / 1 = previous / displayed / next month page.
     @State private var currentPage = 0
     @State private var isNavigating = false
 
+    private static let cellHeight: CGFloat = 44
+    private static let rowSpacing: CGFloat = 6
+    private static let gridHeight = 6 * cellHeight + 5 * rowSpacing
+    /// Long enough for the page animation to settle before the pages are re-centred.
+    private static let pageSettleDelay: Duration = .milliseconds(350)
+
     var body: some View {
-        VStack(spacing: 16) {
-            // Month navigation header
-            HStack {
-                Button {
-                    navigatePrevious()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 36, height: 36)
-                        .background {
-                            Circle()
-                                .fill(.ultraThinMaterial)
-                                .overlay(
-                                    Circle()
-                                        .strokeBorder(.white.opacity(0.2), lineWidth: 0.5)
-                                )
-                        }
-                }
-                .buttonStyle(LiquidGlassButtonStyle())
+        VStack(spacing: 14) {
+            header
+            weekdayHeader
+            pager
+        }
+        .glassCard(padding: 14)
+        .sensoryFeedback(.impact(weight: .light), trigger: viewModel.displayedMonth)
+    }
 
-                Spacer()
+    // MARK: - Header
 
-                Text(viewModel.monthTitle)
-                    .font(.system(.title3, design: .rounded).weight(.bold))
-                    .contentTransition(.numericText())
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.monthTitle)
-
-                Spacer()
-
-                Button {
-                    navigateNext()
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 36, height: 36)
-                        .background {
-                            Circle()
-                                .fill(.ultraThinMaterial)
-                                .overlay(
-                                    Circle()
-                                        .strokeBorder(.white.opacity(0.2), lineWidth: 0.5)
-                                )
-                        }
-                }
-                .buttonStyle(LiquidGlassButtonStyle())
+    private var header: some View {
+        HStack {
+            GlassIconButton(systemImage: "chevron.left", accessibilityLabel: "Previous Month") {
+                navigate(by: -1)
             }
 
-            // Weekday headers
-            HStack(spacing: 0) {
-                ForEach(viewModel.weekdaySymbols, id: \.self) { symbol in
-                    Text(symbol)
-                        .font(.system(.caption2, design: .rounded).weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            .padding(.bottom, 2)
+            Spacer()
 
-            // Paged calendar grids
-            TabView(selection: $currentPage) {
-                MonthGridView(
-                    days: viewModel.calendarDays(for: viewModel.monthOffset(-1)),
-                    viewModel: viewModel
-                )
-                .tag(-1)
+            // Reflects the page being shown, so the title updates as soon as a swipe lands.
+            Text(viewModel.monthTitle(for: viewModel.monthOffset(currentPage)))
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .contentTransition(.numericText())
+                .animation(Theme.spring, value: currentPage)
+                .accessibilityAddTraits(.isHeader)
 
-                MonthGridView(
-                    days: viewModel.calendarDays,
-                    viewModel: viewModel
-                )
-                .tag(0)
+            Spacer()
 
-                MonthGridView(
-                    days: viewModel.calendarDays(for: viewModel.monthOffset(1)),
-                    viewModel: viewModel
-                )
-                .tag(1)
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: gridHeight)
-            .onChange(of: currentPage) { _, newValue in
-                guard newValue != 0 else { return }
-                guard !isNavigating else { return }
-                isNavigating = true
-                if newValue == 1 {
-                    viewModel.nextMonth()
-                } else {
-                    viewModel.previousMonth()
-                }
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    currentPage = 0
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        isNavigating = false
-                    }
-                }
+            GlassIconButton(systemImage: "chevron.right", accessibilityLabel: "Next Month") {
+                navigate(by: 1)
             }
         }
-        .glassCard()
+        .padding(.horizontal, 2)
     }
 
-    private var gridHeight: CGFloat {
-        6 * 46 + 5 * 6
+    private var weekdayHeader: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(viewModel.weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
+                Text(symbol.uppercased())
+                    .font(.system(.caption2, design: .rounded).weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .accessibilityHidden(true)
     }
 
-    private func navigatePrevious() {
+    // MARK: - Pager
+
+    private var pager: some View {
+        TabView(selection: $currentPage) {
+            ForEach(-1...1, id: \.self) { offset in
+                MonthGridView(
+                    days: viewModel.calendarDays(for: viewModel.monthOffset(offset)),
+                    viewModel: viewModel,
+                    cellHeight: Self.cellHeight,
+                    rowSpacing: Self.rowSpacing
+                )
+                .tag(offset)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .frame(height: Self.gridHeight)
+        .allowsHitTesting(!isNavigating)
+        .onChange(of: currentPage) { _, page in
+            guard page != 0, !isNavigating else { return }
+            commitPage(page)
+        }
+    }
+
+    private func navigate(by offset: Int) {
         guard !isNavigating else { return }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { currentPage = -1 }
+        withAnimation(Theme.spring) { currentPage = offset }
     }
 
-    private func navigateNext() {
-        guard !isNavigating else { return }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { currentPage = 1 }
+    /// Once the neighbouring page is fully visible, advance the model and snap back to the centre page
+    /// without animation. Both happen in one transaction, so the visible month never changes on screen.
+    private func commitPage(_ page: Int) {
+        isNavigating = true
+        Task { @MainActor in
+            try? await Task.sleep(for: Self.pageSettleDelay)
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                // The user may have swiped back to the centre while we waited.
+                if currentPage == page {
+                    if page > 0 {
+                        viewModel.nextMonth()
+                    } else {
+                        viewModel.previousMonth()
+                    }
+                }
+                currentPage = 0
+            }
+            isNavigating = false
+        }
     }
 }
 
@@ -137,26 +125,27 @@ struct CalendarView: View {
 private struct MonthGridView: View {
     let days: [CalendarDay]
     var viewModel: CalendarViewModel
+    let cellHeight: CGFloat
+    let rowSpacing: CGFloat
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 7)
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 6) {
+        LazyVGrid(columns: columns, spacing: rowSpacing) {
             ForEach(days) { day in
-                CalendarDayCell(
-                    day: day,
-                    isSelected: viewModel.isSelected(day.date),
-                    hasEvents: viewModel.hasEvents(on: day.date),
-                    busyness: viewModel.busynessScore(on: day.date)
-                )
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        viewModel.selectDate(day.date)
-                    }
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                let isSelected = viewModel.isSelected(day.date)
+                let eventCount = viewModel.eventCount(on: day.date)
+                Button {
+                    withAnimation(Theme.snappy) { viewModel.selectDate(day.date) }
+                } label: {
+                    CalendarDayCell(day: day, isSelected: isSelected, eventCount: eventCount, height: cellHeight)
                 }
+                .buttonStyle(PressableButtonStyle())
+                .accessibilityLabel(CalendarDayCell.accessibilityText(for: day, eventCount: eventCount))
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 }
 
@@ -165,78 +154,69 @@ private struct MonthGridView: View {
 struct CalendarDayCell: View {
     let day: CalendarDay
     let isSelected: Bool
-    let hasEvents: Bool
-    var busyness: Double = 0
+    var eventCount: Int = 0
+    var height: CGFloat = 44
+
+    @Environment(\.accent) private var accent
+
+    private var busyness: Double { min(Double(eventCount) / 4, 1) }
+    private var isHighlighted: Bool { isSelected && day.isCurrentMonth }
 
     var body: some View {
         VStack(spacing: 4) {
             Text("\(day.day)")
-                .font(.system(.body, design: .rounded, weight: day.isToday ? .bold : .medium))
-                .foregroundStyle(textColor)
+                .font(.system(.body, design: .rounded, weight: day.isToday || isHighlighted ? .bold : .medium))
+                .monospacedDigit()
+                .foregroundStyle(textStyle)
 
-            // Busyness bar
-            if hasEvents && day.isCurrentMonth {
-                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                    .fill(busynessColor)
-                    .frame(width: busynessBarWidth, height: 3)
-            } else {
-                Color.clear.frame(width: 5, height: 3)
-            }
+            Capsule()
+                .fill(barStyle)
+                .frame(width: 6 + 12 * busyness, height: 3)
+                .opacity(eventCount > 0 && day.isCurrentMonth ? 1 : 0)
         }
-        .frame(height: 46)
         .frame(maxWidth: .infinity)
-        .background(background)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .opacity(day.isCurrentMonth ? 1 : 0.25)
+        .frame(height: height)
+        .background { background }
+        .opacity(day.isCurrentMonth ? 1 : 0.3)
     }
 
-    private var busynessBarWidth: CGFloat {
-        6 + 14 * busyness
-    }
-
-    private var busynessColor: Color {
-        if day.isToday { return .white.opacity(0.9) }
-        if busyness <= 0.25 { return .green }
-        if busyness <= 0.5 { return .accentColor }
-        if busyness <= 0.75 { return .orange }
-        return .red
-    }
-
-    private var textColor: Color {
-        if day.isToday && day.isCurrentMonth { return .white }
-        if isSelected && day.isCurrentMonth { return .accentColor }
+    private var textStyle: Color {
+        if isHighlighted { return .white }
+        if day.isToday { return accent }
         return .primary
+    }
+
+    private var barStyle: Color {
+        if isHighlighted { return .white.opacity(0.9) }
+        switch busyness {
+        case ...0.25: return .green
+        case ...0.5: return accent
+        case ...0.75: return .orange
+        default: return .red
+        }
     }
 
     @ViewBuilder
     private var background: some View {
-        if day.isToday && day.isCurrentMonth {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.accentColor)
-
-                // Glass highlight on today cell
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [.white.opacity(0.3), .clear],
-                            startPoint: .top,
-                            endPoint: .center
-                        )
-                    )
-            }
-            .shadow(color: Color.accentColor.opacity(0.4), radius: 8, x: 0, y: 3)
-        } else if isSelected && day.isCurrentMonth {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(.ultraThinMaterial)
-
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.1))
-
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color.accentColor.opacity(0.3), lineWidth: 0.5)
-            }
+        let shape = RoundedRectangle(cornerRadius: Theme.Radius.cell, style: .continuous)
+        if isHighlighted {
+            shape
+                .fill(accent.gradient)
+                .overlay {
+                    shape.fill(LinearGradient(colors: [.white.opacity(0.28), .clear], startPoint: .top, endPoint: .center))
+                }
+                .shadow(color: accent.opacity(0.35), radius: 8, x: 0, y: 4)
+        } else if day.isToday && day.isCurrentMonth {
+            shape
+                .fill(accent.opacity(0.12))
+                .overlay { shape.strokeBorder(accent.opacity(0.35), lineWidth: 1) }
         }
+    }
+
+    static func accessibilityText(for day: CalendarDay, eventCount: Int) -> String {
+        var parts = [day.date.formatted(date: .complete, time: .omitted)]
+        if day.isToday { parts.insert("Today", at: 0) }
+        if eventCount > 0 { parts.append(eventCount == 1 ? "1 event" : "\(eventCount) events") }
+        return parts.joined(separator: ", ")
     }
 }

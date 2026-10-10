@@ -10,22 +10,42 @@ import SwiftUI
 struct CalendarPickerView: View {
     var viewModel: CalendarViewModel
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(AccentPalette.storageKey) private var accentColorName = AccentPalette.blue.rawValue
     @State private var selected: Set<String> = []
 
+    private var allIDs: Set<String> { Set(viewModel.availableCalendars.map(\.id)) }
+    private var allSelected: Bool { selected.isSuperset(of: allIDs) }
+
     private var groupedCalendars: [(account: String, calendars: [CalendarSource])] {
-        let grouped = Dictionary(grouping: viewModel.availableCalendars) { $0.accountName }
-        return grouped.keys.sorted().map { key in
-            (account: key.isEmpty ? "Local" : key, calendars: grouped[key]!)
-        }
+        Dictionary(grouping: viewModel.availableCalendars, by: \.accountName)
+            .map { account, calendars in (account: account.isEmpty ? "Other" : account, calendars: calendars) }
+            .sorted { $0.account.localizedCaseInsensitiveCompare($1.account) == .orderedAscending }
     }
 
     var body: some View {
         NavigationStack {
             List {
-                ForEach(groupedCalendars, id: \.account) { group in
-                    Section(group.account) {
-                        ForEach(group.calendars) { cal in
-                            calendarRow(cal)
+                if viewModel.availableCalendars.isEmpty {
+                    ContentUnavailableView(
+                        "No Calendars",
+                        systemImage: "calendar.badge.exclamationmark",
+                        description: Text("Add a calendar account in the Settings app.")
+                    )
+                    .listRowBackground(Color.clear)
+                } else {
+                    Section {
+                        Button(allSelected ? "Deselect All" : "Select All") {
+                            withAnimation(Theme.snappy) {
+                                selected = allSelected ? [] : allIDs
+                            }
+                        }
+                    }
+
+                    ForEach(groupedCalendars, id: \.account) { group in
+                        Section(group.account) {
+                            ForEach(group.calendars) { calendar in
+                                calendarRow(calendar)
+                            }
                         }
                     }
                 }
@@ -34,78 +54,55 @@ struct CalendarPickerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Select All") {
-                        selected = Set(viewModel.availableCalendars.map(\.id))
-                    }
-                    .font(.system(.body, design: .rounded))
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         viewModel.updateSelectedCalendars(selected)
                         dismiss()
                     }
-                    .font(.system(.body, design: .rounded).weight(.semibold))
-                    .disabled(selected.isEmpty)
+                    .fontWeight(.semibold)
+                    .disabled(selected.isEmpty && !viewModel.availableCalendars.isEmpty)
                 }
             }
+            .sensoryFeedback(.selection, trigger: selected)
         }
+        .tint(AccentPalette.color(for: accentColorName))
         .onAppear {
-            if viewModel.selectedCalendarIDs.isEmpty {
-                selected = Set(viewModel.availableCalendars.map(\.id))
-            } else {
-                selected = viewModel.selectedCalendarIDs
-            }
+            selected = viewModel.selectedCalendarIDs.isEmpty ? allIDs : viewModel.selectedCalendarIDs
         }
     }
 
-    private func calendarRow(_ cal: CalendarSource) -> some View {
-        Button {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
-                if selected.contains(cal.id) {
-                    selected.remove(cal.id)
+    private func calendarRow(_ calendar: CalendarSource) -> some View {
+        let isOn = selected.contains(calendar.id)
+        let color = Color(hex: calendar.colorHex)
+
+        return Button {
+            withAnimation(Theme.snappy) {
+                if isOn {
+                    selected.remove(calendar.id)
                 } else {
-                    selected.insert(cal.id)
+                    selected.insert(calendar.id)
                 }
             }
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
         } label: {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(hex: cal.colorHex).opacity(0.8), Color(hex: cal.colorHex)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 14, height: 14)
-                        .overlay(
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [.white.opacity(0.4), .clear],
-                                        startPoint: .topLeading,
-                                        endPoint: .center
-                                    )
-                                )
-                        )
-                        .shadow(color: Color(hex: cal.colorHex).opacity(0.4), radius: 3, x: 0, y: 1)
-                }
+                Circle()
+                    .fill(color.gradient)
+                    .frame(width: 14, height: 14)
+                    .shadow(color: color.opacity(0.4), radius: 3, x: 0, y: 1)
 
-                Text(cal.title)
-                    .font(.system(.body, design: .rounded))
+                Text(calendar.title)
                     .foregroundStyle(.primary)
 
                 Spacer()
 
-                if selected.contains(cal.id) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.accentColor)
-                        .font(.body.weight(.medium))
-                        .transition(.scale.combined(with: .opacity))
-                }
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isOn ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
+                    .contentTransition(.symbolEffect(.replace))
             }
         }
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }

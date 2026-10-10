@@ -2,151 +2,190 @@
 //  EventEditorView.swift
 //  Kalendar
 //
-//  Create and edit calendar events — Liquid Glass
+//  Create calendar events — Liquid Glass
 //
 
 import SwiftUI
-import UserNotifications
 
 struct EventEditorView: View {
     var viewModel: CalendarViewModel
-    let initialDate: Date
+
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("accentColorName") private var accentColorName = "blue"
+    @AppStorage(AccentPalette.storageKey) private var accentColorName = AccentPalette.blue.rawValue
+    @FocusState private var titleFocused: Bool
 
     @State private var title = ""
     @State private var startDate: Date
     @State private var endDate: Date
     @State private var isAllDay = false
     @State private var notes = ""
-    @State private var reminderEnabled = false
-    @State private var reminderMinutes = 15
-    @State private var showError = false
-    @State private var errorMessage = ""
+    /// Minutes before the event; `nil` means no reminder.
+    @State private var reminderMinutes: Int?
+    @State private var isSaving = false
+    @State private var errorMessage: String?
 
-    init(viewModel: CalendarViewModel, initialDate: Date) {
+    /// - Parameters:
+    ///   - initialDate: The day (or exact start time) to prefill. A midnight date is treated as "a day".
+    ///   - initialEndDate: Optional exact end time; defaults to one hour after the start.
+    init(viewModel: CalendarViewModel, initialDate: Date, initialEndDate: Date? = nil) {
         self.viewModel = viewModel
-        self.initialDate = initialDate
 
-        let cal = Calendar.current
-        let start = cal.date(bySettingHour: 9, minute: 0, second: 0, of: initialDate) ?? initialDate
-        let end = cal.date(byAdding: .hour, value: 1, to: start) ?? initialDate
+        let start = Self.suggestedStart(for: initialDate)
+        let end = initialEndDate.flatMap { $0 > start ? $0 : nil } ?? start.addingTimeInterval(3600)
         _startDate = State(initialValue: start)
         _endDate = State(initialValue: end)
     }
 
-    private var accent: Color { accentColorFor(accentColorName) }
+    /// Today → the next full hour; other days → 9 AM; an explicit time is kept as is.
+    private static func suggestedStart(for date: Date) -> Date {
+        let calendar = Calendar.current
+        guard date == calendar.startOfDay(for: date) else { return date }
+
+        if calendar.isDateInToday(date) {
+            let now = Date()
+            let nextHour = calendar.nextDate(
+                after: now,
+                matching: DateComponents(minute: 0, second: 0),
+                matchingPolicy: .nextTime
+            )
+            return nextHour ?? now
+        }
+        return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: date) ?? date
+    }
+
+    private var accent: Color { AccentPalette.color(for: accentColorName) }
+
+    private var trimmedTitle: String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var datesAreValid: Bool {
+        isAllDay
+            ? Calendar.current.startOfDay(for: endDate) >= Calendar.current.startOfDay(for: startDate)
+            : endDate >= startDate
+    }
+
+    private var canSave: Bool {
+        !trimmedTitle.isEmpty && datesAreValid && !isSaving
+    }
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                // Ambient background
-                LinearGradient(
-                    colors: [
-                        accent.opacity(0.06),
-                        Color(.systemGroupedBackground),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+            Form {
+                Section {
+                    TextField("Title", text: $title)
+                        .font(.system(.title3, design: .rounded).weight(.semibold))
+                        .focused($titleFocused)
+                        .submitLabel(.done)
+                        .onSubmit { if canSave { save() } }
 
-                Form {
-                    Section {
-                        TextField("Event Title", text: $title)
-                            .font(.system(.body, design: .rounded))
-                        Toggle("All Day", isOn: $isAllDay)
-                            .tint(accent)
+                    TextField("Notes", text: $notes, axis: .vertical)
+                        .font(.system(.body, design: .rounded))
+                        .lineLimit(2...6)
+                }
+
+                Section {
+                    Toggle(isOn: $isAllDay.animation(Theme.spring)) {
+                        Label("All Day", systemImage: "sun.max")
                     }
 
-                    Section {
-                        DatePicker("Starts", selection: $startDate,
-                                   displayedComponents: isAllDay ? .date : [.date, .hourAndMinute])
-                        DatePicker("Ends", selection: $endDate,
-                                   displayedComponents: isAllDay ? .date : [.date, .hourAndMinute])
+                    DatePicker(
+                        selection: $startDate,
+                        displayedComponents: isAllDay ? .date : [.date, .hourAndMinute]
+                    ) {
+                        Label("Starts", systemImage: "clock")
                     }
 
-                    Section {
-                        TextField("Notes", text: $notes, axis: .vertical)
-                            .font(.system(.body, design: .rounded))
-                            .lineLimit(3...6)
+                    DatePicker(
+                        selection: $endDate,
+                        in: startDate...,
+                        displayedComponents: isAllDay ? .date : [.date, .hourAndMinute]
+                    ) {
+                        Label("Ends", systemImage: "clock.badge.checkmark")
                     }
-
-                    Section {
-                        Toggle("Reminder", isOn: $reminderEnabled)
-                            .tint(accent)
-                        if reminderEnabled {
-                            Picker("Before event", selection: $reminderMinutes) {
-                                Text("5 minutes").tag(5)
-                                Text("15 minutes").tag(15)
-                                Text("30 minutes").tag(30)
-                                Text("1 hour").tag(60)
-                            }
-                        }
+                } footer: {
+                    if !datesAreValid {
+                        Text("The end must be after the start.")
+                            .foregroundStyle(.red)
                     }
                 }
-                .scrollContentBackground(.hidden)
+
+                Section {
+                    Picker(selection: $reminderMinutes) {
+                        Text("None").tag(Int?.none)
+                        if isAllDay {
+                            Text("On the day (9 AM)").tag(Int?.some(0))
+                        } else {
+                            ForEach(ReminderOption.minutes, id: \.self) { minutes in
+                                Text(minutes == 0 ? ReminderOption.label(for: minutes) : "\(ReminderOption.label(for: minutes)) before")
+                                    .tag(Int?.some(minutes))
+                            }
+                        }
+                    } label: {
+                        Label("Alert", systemImage: "bell")
+                    }
+                }
             }
+            .scrollContentBackground(.hidden)
+            .background { AmbientBackground(accent: accent) }
             .navigationTitle("New Event")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                        .font(.system(.body, design: .rounded))
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        saveEvent()
-                    } label: {
-                        Text("Save")
-                            .font(.system(.body, design: .rounded).weight(.semibold))
+                    if isSaving {
+                        ProgressView()
+                    } else {
+                        Button("Add") { save() }
+                            .fontWeight(.semibold)
+                            .disabled(!canSave)
                     }
-                    .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
-            .alert("Error", isPresented: $showError) {
-                Button("OK") {}
+            .onChange(of: startDate) { oldStart, newStart in
+                // Keep the event's duration when the start moves.
+                let duration = max(endDate.timeIntervalSince(oldStart), 0)
+                endDate = newStart.addingTimeInterval(duration)
+            }
+            .onChange(of: isAllDay) { _, allDay in
+                // Reminder choices differ between all-day and timed events.
+                if reminderMinutes != nil { reminderMinutes = allDay ? 0 : 15 }
+            }
+            .onAppear { titleFocused = true }
+            .alert(
+                "Couldn't Save Event",
+                isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
+            ) {
+                Button("OK", role: .cancel) {}
             } message: {
-                Text(errorMessage)
+                Text(errorMessage ?? "")
             }
         }
         .tint(accent)
+        .environment(\.accent, accent)
+        .interactiveDismissDisabled(!trimmedTitle.isEmpty || !notes.isEmpty)
     }
 
-    private func saveEvent() {
+    private func save() {
+        guard canSave else { return }
+        isSaving = true
         Task {
+            defer { isSaving = false }
             do {
                 try await viewModel.createEvent(
-                    title: title,
+                    title: trimmedTitle,
                     startDate: startDate,
                     endDate: endDate,
-                    notes: notes.isEmpty ? nil : notes,
-                    isAllDay: isAllDay
+                    notes: notes,
+                    isAllDay: isAllDay,
+                    reminderMinutes: reminderMinutes
                 )
-
-                if reminderEnabled {
-                    scheduleReminder()
-                }
-
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
-                showError = true
             }
         }
-    }
-
-    private func scheduleReminder() {
-        let content = UNMutableNotificationContent()
-        content.title = "Upcoming Event"
-        content.body = "\(title) starts in \(reminderMinutes) minutes"
-        content.sound = .default
-
-        let triggerDate = startDate.addingTimeInterval(-TimeInterval(reminderMinutes * 60))
-        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: triggerDate)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
-
-        UNUserNotificationCenter.current().add(request)
     }
 }
