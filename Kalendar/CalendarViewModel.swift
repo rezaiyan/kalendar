@@ -78,11 +78,12 @@ final class CalendarViewModel {
     init(
         eventRepository: EventRepository,
         localEventStore: LocalEventStore? = nil,
-        reminders: ReminderScheduling = NoopReminderScheduler()
+        reminders: ReminderScheduling? = nil
     ) {
         self.repository = eventRepository
         self.localStore = localEventStore ?? LocalEventStore()
-        self.reminders = reminders
+        // Resolved here rather than as a default argument: defaults are evaluated outside the main actor.
+        self.reminders = reminders ?? NoopReminderScheduler()
 
         let startsMonday = SharedStorage.startsWeekOnMonday
         let calendar = Self.makeCalendar(startsWeekOnMonday: startsMonday)
